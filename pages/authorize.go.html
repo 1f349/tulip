@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>1f349 ID</title>
+</head>
+<body>
+<header>
+    <h1>1f349 ID</h1>
+</header>
+<main>
+    <form method="POST" action="/authorize">
+        <div>The application {{.AppName}} wants to access your account ({{.User.Name}}). It requests the following permissions:</div>
+        <div>
+            <ul>
+                {{range .WantsList}}
+                    <li>{{.Label}}</li>
+                {{end}}
+            </ul>
+        </div>
+        <div>
+            <input type="hidden" name="response_type" value="{{.ResponseType}}"/>
+            <input type="hidden" name="client_id" value="{{.ClientID}}"/>
+            <input type="hidden" name="state" value="{{.State}}"/>
+            <input type="hidden" name="scopes" value="{{.Scope}}"/>
+            <input type="hidden" name="nonce" value="{{.Nonce}}"/>
+            <button class="oauth-action-authorize" name="oauth_action" value="authorize">Authorize</button>
+            <button class="oauth-action-cancel" name="oauth_action" value="cancel">Cancel</button>
+        </div>
+    </form>
+</main>
+</body>
+</html>

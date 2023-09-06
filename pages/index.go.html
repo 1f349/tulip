@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>1f349 ID</title>
+</head>
+<body>
+<header>
+    <h1>1f349 ID</h1>
+</header>
+<main>
+    <div>Logged in as: {{.User.Name}} ({{.User.ID}})</div>
+    <div>
+        <form method="POST" action="/logout"><input type="hidden" name="nonce" value="{{.Nonce}}">
+            <button type="submit">Log Out</button>
+        </form>
+    </div>
+</main>
+</body>
+</html>
