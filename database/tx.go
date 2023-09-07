@@ -32,12 +32,12 @@ func (t *Tx) HasUser() error {
 	return nil
 }
 
-func (t *Tx) InsertUser(un, pw, email string) error {
+func (t *Tx) InsertUser(name, un, pw, email string) error {
 	pwHash, err := password.HashPassword(pw)
 	if err != nil {
 		return err
 	}
-	_, err = t.tx.Exec(`INSERT INTO users (subject, username, password, email) VALUES (?, ?, ?, ?)`, uuid.NewString(), un, pwHash, email)
+	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email) VALUES (?, ?, ?, ?, ?)`, uuid.NewString(), name, un, pwHash, email)
 	return err
 }
 
@@ -113,20 +113,20 @@ func (t *Tx) ChangeUserPassword(sub uuid.UUID, pwOld, pwNew string) error {
 func (t *Tx) ModifyUser(sub uuid.UUID, v *UserPatch) error {
 	exec, err := t.tx.Exec(
 		`UPDATE users
-SET name       = ifnull(?, name),
-    picture    = ifnull(?, picture),
-    website    = ifnull(?, website),
-    pronouns   = ifnull(?, pronouns),
-    birthdate  = ifnull(?, birthdate),
-    zoneinfo   = ifnull(?, zoneinfo),
-    locale     = ifnull(?, locale),
+SET name       = ?,
+    picture    = ?,
+    website    = ?,
+    pronouns   = ?,
+    birthdate  = ?,
+    zoneinfo   = ?,
+    locale     = ?,
     updated_at = ?
 WHERE subject = ?`,
 		v.Name,
-		stringify(v.Picture),
-		stringify(v.Website),
+		v.Picture,
+		v.Website,
 		v.Pronouns.String(),
-		sql.NullTime{Time: v.Birthdate, Valid: !v.Birthdate.IsZero()},
+		v.Birthdate,
 		v.ZoneInfo.String(),
 		v.Locale.String(),
 		time.Now().Format(time.DateTime),
@@ -164,14 +164,3 @@ func (c *clientInfoDbOutput) GetDomain() string { return c.domain }
 func (c *clientInfoDbOutput) IsPublic() bool    { return false }
 func (c *clientInfoDbOutput) GetUserID() string { return "" }
 func (c *clientInfoDbOutput) IsSSO() bool       { return c.sso }
-
-func stringify(stringer fmt.Stringer) sql.NullString {
-	if stringer == nil {
-		return sql.NullString{}
-	}
-	return emptyToNull(stringer.String())
-}
-
-func emptyToNull(a string) sql.NullString {
-	return sql.NullString{String: a, Valid: a != ""}
-}

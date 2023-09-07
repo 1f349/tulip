@@ -114,7 +114,7 @@ func checkDbHasUser(db *database.DB) error {
 	}
 	if err := tx.HasUser(); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := tx.InsertUser("admin", "admin", "admin@localhost")
+			err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost")
 			if err != nil {
 				return fmt.Errorf("failed to add user: %w", err)
 			}

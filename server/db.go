@@ -6,7 +6,10 @@ import (
 	"net/http"
 )
 
-func (h *HttpServer) dbTx(rw http.ResponseWriter, action func(tx *database.Tx) error) bool {
+// DbTx wraps a database transaction with http error messages and a simple action
+// function. If the action function returns an error the transaction will be
+// rolled back. If there is no error then the transaction is committed.
+func (h *HttpServer) DbTx(rw http.ResponseWriter, action func(tx *database.Tx) error) bool {
 	tx, err := h.db.Begin()
 	if err != nil {
 		http.Error(rw, "Failed to begin database transaction", http.StatusInternalServerError)

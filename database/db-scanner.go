@@ -25,7 +25,7 @@ func marshalValueOrNull(null bool, data any) ([]byte, error) {
 type NullStringScanner struct{ sql.NullString }
 
 func (s *NullStringScanner) Null() bool         { return !s.Valid }
-func (s *NullStringScanner) Scan(src any) error { return s.Scan(src) }
+func (s *NullStringScanner) Scan(src any) error { return s.NullString.Scan(src) }
 func (s NullStringScanner) MarshalJSON() ([]byte, error) {
 	return marshalValueOrNull(s.Null(), s.String)
 }
@@ -75,6 +75,14 @@ func (l *LocationScanner) Scan(src any) error {
 	return nil
 }
 func (l LocationScanner) MarshalJSON() ([]byte, error) { return json.Marshal(l.Location.String()) }
+func (l *LocationScanner) UnmarshalJSON(bytes []byte) error {
+	var a string
+	err := json.Unmarshal(bytes, &a)
+	if err != nil {
+		return err
+	}
+	return l.Scan(a)
+}
 
 type LocaleScanner struct{ language.Tag }
 
@@ -90,8 +98,14 @@ func (l *LocaleScanner) Scan(src any) error {
 	l.Tag = lang
 	return nil
 }
-func (l LocaleScanner) MarshalJSON() ([]byte, error) {
-	return json.Marshal(l.Tag.String())
+func (l LocaleScanner) MarshalJSON() ([]byte, error) { return json.Marshal(l.Tag.String()) }
+func (l *LocaleScanner) UnmarshalJSON(bytes []byte) error {
+	var a string
+	err := json.Unmarshal(bytes, &a)
+	if err != nil {
+		return err
+	}
+	return l.Scan(a)
 }
 
 type PronounScanner struct{ pronouns.Pronoun }
@@ -109,3 +123,11 @@ func (p *PronounScanner) Scan(src any) error {
 	return nil
 }
 func (p PronounScanner) MarshalJSON() ([]byte, error) { return json.Marshal(p.Pronoun.String()) }
+func (p *PronounScanner) UnmarshalJSON(bytes []byte) error {
+	var a string
+	err := json.Unmarshal(bytes, &a)
+	if err != nil {
+		return err
+	}
+	return p.Scan(a)
+}

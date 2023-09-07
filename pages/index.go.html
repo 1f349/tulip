@@ -8,9 +8,13 @@
     <h1>1f349 ID</h1>
 </header>
 <main>
-    <div>Logged in as: {{.User.Name}} ({{.User.ID}})</div>
+    <div>Logged in as: {{.User.Name}} ({{.User.Sub}})</div>
     <div>
-        <form method="POST" action="/logout"><input type="hidden" name="nonce" value="{{.Nonce}}">
+        <button onclick="location.href='/edit'">Edit Profile</button>
+    </div>
+    <div>
+        <form method="POST" action="/logout">
+            <input type="hidden" name="nonce" value="{{.Nonce}}">
             <button type="submit">Log Out</button>
         </form>
     </div>

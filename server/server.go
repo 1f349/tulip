@@ -93,9 +93,6 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 		return "openid", nil
 	})
 
-	newUserUuid := uuid.New()
-	fmt.Println("New User Uuid:", newUserUuid.String())
-
 	r.GET("/.well-known/openid-configuration", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		rw.WriteHeader(http.StatusOK)
 		_, _ = rw.Write(openIdBytes)
@@ -115,16 +112,18 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 			return
 		}
 
-		hs.dbTx(rw, func(tx *database.Tx) error {
+		hs.DbTx(rw, func(tx *database.Tx) error {
 			userWithName, err := tx.GetUserDisplayName(auth.ID)
 			if err != nil {
 				return fmt.Errorf("failed to get user display name: %w", err)
 			}
-			_ = pages.RenderPageTemplate(rw, "index", map[string]any{
+			if err := pages.RenderPageTemplate(rw, "index", map[string]any{
 				"Auth":  auth,
 				"User":  userWithName,
 				"Nonce": lNonce,
-			})
+			}); err != nil {
+				log.Printf("Failed to render page: edit: %s\n", err)
+			}
 			return nil
 		})
 	}))
@@ -152,13 +151,15 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 		}
 		rw.Header().Set("Content-Type", "text/html")
 		rw.WriteHeader(http.StatusOK)
-		_ = pages.RenderPageTemplate(rw, "login", nil)
+		if err := pages.RenderPageTemplate(rw, "login", nil); err != nil {
+			log.Printf("Failed to render page: edit: %s\n", err)
+		}
 	}))
 	r.POST("/login", hs.OptionalAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		un := req.FormValue("username")
 		pw := req.FormValue("password")
 		var userSub uuid.UUID
-		if hs.dbTx(rw, func(tx *database.Tx) error {
+		if hs.DbTx(rw, func(tx *database.Tx) error {
 			loginUser, err := tx.CheckLogin(un, pw)
 			if err != nil {
 				if errors2.Is(err, sql.ErrNoRows) || errors2.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
@@ -207,13 +208,16 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 		}
 	})
 	r.GET("/edit", hs.RequireAuthentication("403 Forbidden", http.StatusForbidden, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		begin, err := db.Begin()
-		if err != nil {
-			return
-		}
-		user, err := begin.GetUser(auth.ID)
-		if err != nil {
-			http.Error(rw, "Failed to read user data", http.StatusInternalServerError)
+		var user *database.User
+
+		if hs.DbTx(rw, func(tx *database.Tx) error {
+			var err error
+			user, err = tx.GetUser(auth.ID)
+			if err != nil {
+				return fmt.Errorf("failed to read user data: %w", err)
+			}
+			return nil
+		}) {
 			return
 		}
 
@@ -223,33 +227,31 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 			http.Error(rw, "Failed to save session", http.StatusInternalServerError)
 			return
 		}
-		_ = pages.RenderPageTemplate(rw, "edit", map[string]any{
+		if err := pages.RenderPageTemplate(rw, "edit", map[string]any{
 			"User":  user,
 			"Nonce": lNonce,
-		})
+		}); err != nil {
+			log.Printf("Failed to render page: edit: %s\n", err)
+		}
 	}))
 	r.POST("/edit", hs.RequireAuthentication("403 Forbidden", http.StatusForbidden, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		if req.ParseForm() != nil {
 			rw.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		// TODO: parse user patch from form
-		req.Form.Get("")
+
 		var patch database.UserPatch
-		decoder := json.NewDecoder(req.Body)
-		decoder.DisallowUnknownFields()
-		err := decoder.Decode(&patch)
+		err := patch.ParseFromForm(req.Form)
 		if err != nil {
 			rw.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		begin, err := db.Begin()
-		if err != nil {
-			rw.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if begin.ModifyUser(auth.ID, &patch) != nil {
-			http.Error(rw, "Failed to modify user info", http.StatusInternalServerError)
+		if hs.DbTx(rw, func(tx *database.Tx) error {
+			if err := tx.ModifyUser(auth.ID, &patch); err != nil {
+				return fmt.Errorf("failed to modify user info: %w", err)
+			}
+			return nil
+		}) {
 			return
 		}
 		http.Redirect(rw, req, "/", http.StatusFound)

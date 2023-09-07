@@ -44,12 +44,9 @@ func TestTx_ModifyUser(t *testing.T) {
 	tx, err := d.Begin()
 	assert.NoError(t, err)
 	assert.NoError(t, tx.ModifyUser(u, &UserPatch{
-		Name:      "example",
-		Picture:   nil,
-		Website:   nil,
-		Pronouns:  pronouns.Pronoun{},
-		Birthdate: time.Time{},
-		ZoneInfo:  nil,
-		Locale:    &language.Tag{},
+		Name:     "example",
+		Pronouns: pronouns.TheyThem,
+		ZoneInfo: time.UTC,
+		Locale:   language.AmericanEnglish,
 	}))
 }
