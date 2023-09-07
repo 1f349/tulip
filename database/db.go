@@ -35,3 +35,7 @@ func (d *DB) BeginCtx(ctx context.Context) (*Tx, error) {
 	}
 	return &Tx{begin}, err
 }
+
+func (d *DB) Close() error {
+	return d.db.Close()
+}

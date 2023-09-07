@@ -234,6 +234,7 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 		if err := pages.RenderPageTemplate(rw, "edit", map[string]any{
 			"User":         user,
 			"Nonce":        lNonce,
+			"FieldPronoun": user.Pronouns.String(),
 			"ListZoneInfo": lists.ListZoneInfo(),
 			"ListLocale":   lists.ListLocale(),
 		}); err != nil {
@@ -243,13 +244,22 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 	r.POST("/edit", hs.RequireAuthentication("403 Forbidden", http.StatusForbidden, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		if req.ParseForm() != nil {
 			rw.WriteHeader(http.StatusBadRequest)
+			_, _ = rw.Write([]byte("400 Bad Request\n"))
 			return
 		}
 
 		var patch database.UserPatch
-		err := patch.ParseFromForm(req.Form)
-		if err != nil {
+		errs := patch.ParseFromForm(req.Form)
+		if len(errs) > 0 {
 			rw.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprintln(rw, "<!DOCTYPE html>\n<html>\n<body>")
+			_, _ = fmt.Fprintln(rw, "<p>400 Bad Request: Failed to parse form data, press the back button in your browser, check your inputs and try again.</p>")
+			_, _ = fmt.Fprintln(rw, "<ul>")
+			for _, i := range errs {
+				_, _ = fmt.Fprintf(rw, "  <li>%s</li>\n", i)
+			}
+			_, _ = fmt.Fprintln(rw, "</ul>")
+			_, _ = fmt.Fprintln(rw, "</body>\n</html>")
 			return
 		}
 		if hs.DbTx(rw, func(tx *database.Tx) error {
@@ -260,7 +270,7 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 		}) {
 			return
 		}
-		http.Redirect(rw, req, "/", http.StatusFound)
+		http.Redirect(rw, req, "/edit", http.StatusFound)
 	}))
 	r.GET("/userinfo", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		token, err := oauthSrv.ValidationBearerToken(req)

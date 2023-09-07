@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/MrMelon54/pronouns"
 	"github.com/google/uuid"
 	"golang.org/x/text/language"
@@ -36,7 +37,8 @@ type UserPatch struct {
 	Locale    language.Tag
 }
 
-func (u *UserPatch) ParseFromForm(v url.Values) (err error) {
+func (u *UserPatch) ParseFromForm(v url.Values) (safeErrs []error) {
+	var err error
 	u.Name = v.Get("name")
 	u.Picture = v.Get("picture")
 	u.Website = v.Get("website")
@@ -45,16 +47,16 @@ func (u *UserPatch) ParseFromForm(v url.Values) (err error) {
 	} else {
 		u.Pronouns, err = pronouns.FindPronoun(v.Get("pronouns"))
 		if err != nil {
-			return err
+			safeErrs = append(safeErrs, fmt.Errorf("invalid pronoun selected"))
 		}
 	}
-	if v.Has("reset_birthdate") {
+	if v.Has("reset_birthdate") || v.Get("birthdate") == "" {
 		u.Birthdate = sql.NullTime{}
 	} else {
 		u.Birthdate = sql.NullTime{Valid: true}
 		u.Birthdate.Time, err = time.Parse(time.DateOnly, v.Get("birthdate"))
 		if err != nil {
-			return err
+			safeErrs = append(safeErrs, fmt.Errorf("invalid time selected"))
 		}
 	}
 	if v.Has("reset_zoneinfo") {
@@ -62,7 +64,7 @@ func (u *UserPatch) ParseFromForm(v url.Values) (err error) {
 	} else {
 		u.ZoneInfo, err = time.LoadLocation(v.Get("zoneinfo"))
 		if err != nil {
-			return err
+			safeErrs = append(safeErrs, fmt.Errorf("invalid timezone selected"))
 		}
 	}
 	if v.Has("reset_locale") {
@@ -70,8 +72,8 @@ func (u *UserPatch) ParseFromForm(v url.Values) (err error) {
 	} else {
 		u.Locale, err = language.Parse(v.Get("locale"))
 		if err != nil {
-			return err
+			safeErrs = append(safeErrs, fmt.Errorf("invalid language selected"))
 		}
 	}
-	return nil
+	return
 }

@@ -91,7 +91,8 @@ func normalLoad(startUp startUpConfig, wd string) {
 
 	exit_reload.ExitReload("Tulip", func() {}, func() {
 		// stop http server
-		srv.Close()
+		_ = srv.Close()
+		_ = db.Close()
 	})
 }
 
@@ -112,6 +113,7 @@ func checkDbHasUser(db *database.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
+	defer tx.Rollback()
 	if err := tx.HasUser(); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost")

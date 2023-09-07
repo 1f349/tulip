@@ -22,16 +22,16 @@
             </div>
             <div>
                 <label for="field_website">Website</label>
-                <input type="text" name="website" id="field_website" value="{{.User.Picture}}">
+                <input type="text" name="website" id="field_website" value="{{.User.Website}}">
             </div>
             <div>
                 <label for="field_pronouns">Pronouns</label>
                 <select name="pronouns" id="field_pronouns">
-                    <option value="they/them" selected>They/Them</option>
-                    <option value="he/him">He/Him</option>
-                    <option value="she/her">She/Her</option>
-                    <option value="it/its">It/Its</option>
-                    <option value="one/one's">One/One's</option>
+                    <option value="they/them" {{if eq "they/them" .FieldPronoun}}selected{{end}}>They/Them</option>
+                    <option value="he/him" {{if eq "he/him" .FieldPronoun}}selected{{end}}>He/Him</option>
+                    <option value="she/her" {{if eq "she/her" .FieldPronoun}}selected{{end}}>She/Her</option>
+                    <option value="it/its" {{if eq "it/its" .FieldPronoun}}selected{{end}}>It/Its</option>
+                    <option value="one/one's" {{if eq "one/one's" .FieldPronoun}}selected{{end}}>One/One's</option>
                 </select>
                 <label>Reset? <input type="checkbox" name="reset_pronouns"></label>
             </div>
@@ -58,7 +58,7 @@
                         <option value="{{.Value}}">{{.Label}}</option>
                     {{end}}
                 </datalist>
-                <label>Reset? <input type="checkbox" name="reset_zoneinfo"></label>
+                <label>Reset? <input type="checkbox" name="reset_locale"></label>
             </div>
             <button type="submit">Edit</button>
         </form>
