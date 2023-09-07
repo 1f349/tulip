@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+func updatedAt() string {
+	return time.Now().UTC().Format(time.DateTime)
+}
+
 type Tx struct{ tx *sql.Tx }
 
 func (t *Tx) Commit() error {
@@ -37,7 +41,7 @@ func (t *Tx) InsertUser(name, un, pw, email string) error {
 	if err != nil {
 		return err
 	}
-	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email) VALUES (?, ?, ?, ?, ?)`, uuid.NewString(), name, un, pwHash, email)
+	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, uuid.NewString(), name, un, pwHash, email, updatedAt())
 	return err
 }
 
@@ -96,7 +100,7 @@ func (t *Tx) ChangeUserPassword(sub uuid.UUID, pwOld, pwNew string) error {
 	if err != nil {
 		return err
 	}
-	exec, err := t.tx.Exec(`UPDATE users SET password = ?, updated_at = ? WHERE subject = ? AND password = ?`, pwNewHash, time.Now().Format(time.DateTime), sub, pwHash)
+	exec, err := t.tx.Exec(`UPDATE users SET password = ?, updated_at = ? WHERE subject = ? AND password = ?`, pwNewHash, updatedAt(), sub, pwHash)
 	if err != nil {
 		return err
 	}
@@ -129,7 +133,7 @@ WHERE subject = ?`,
 		v.Birthdate,
 		v.ZoneInfo.String(),
 		v.Locale.String(),
-		time.Now().Format(time.DateTime),
+		updatedAt(),
 		sub,
 	)
 	if err != nil {

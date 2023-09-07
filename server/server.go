@@ -8,6 +8,7 @@ import (
 	errors2 "errors"
 	"fmt"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/lists"
 	"github.com/1f349/tulip/openid"
 	"github.com/1f349/tulip/pages"
 	"github.com/go-oauth2/oauth2/v4"
@@ -112,20 +113,23 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 			return
 		}
 
-		hs.DbTx(rw, func(tx *database.Tx) error {
-			userWithName, err := tx.GetUserDisplayName(auth.ID)
+		var userWithName *database.User
+		if hs.DbTx(rw, func(tx *database.Tx) (err error) {
+			userWithName, err = tx.GetUserDisplayName(auth.ID)
 			if err != nil {
 				return fmt.Errorf("failed to get user display name: %w", err)
 			}
-			if err := pages.RenderPageTemplate(rw, "index", map[string]any{
-				"Auth":  auth,
-				"User":  userWithName,
-				"Nonce": lNonce,
-			}); err != nil {
-				log.Printf("Failed to render page: edit: %s\n", err)
-			}
-			return nil
-		})
+			return
+		}) {
+			return
+		}
+		if err := pages.RenderPageTemplate(rw, "index", map[string]any{
+			"Auth":  auth,
+			"User":  userWithName,
+			"Nonce": lNonce,
+		}); err != nil {
+			log.Printf("Failed to render page: edit: %s\n", err)
+		}
 	}))
 	r.POST("/logout", hs.RequireAuthentication("403 Forbidden", http.StatusForbidden, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		lNonce, ok := auth.Session.Get("action-nonce")
@@ -228,8 +232,10 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 			return
 		}
 		if err := pages.RenderPageTemplate(rw, "edit", map[string]any{
-			"User":  user,
-			"Nonce": lNonce,
+			"User":         user,
+			"Nonce":        lNonce,
+			"ListZoneInfo": lists.ListZoneInfo(),
+			"ListLocale":   lists.ListLocale(),
 		}); err != nil {
 			log.Printf("Failed to render page: edit: %s\n", err)
 		}

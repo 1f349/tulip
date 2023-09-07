@@ -27,7 +27,7 @@ type NullStringScanner struct{ sql.NullString }
 func (s *NullStringScanner) Null() bool         { return !s.Valid }
 func (s *NullStringScanner) Scan(src any) error { return s.NullString.Scan(src) }
 func (s NullStringScanner) MarshalJSON() ([]byte, error) {
-	return marshalValueOrNull(s.Null(), s.String)
+	return marshalValueOrNull(s.Null(), s.NullString.String)
 }
 func (s *NullStringScanner) UnmarshalJSON(bytes []byte) error {
 	if string(bytes) == "null" {
@@ -39,6 +39,12 @@ func (s *NullStringScanner) UnmarshalJSON(bytes []byte) error {
 		return err
 	}
 	return s.Scan(&a)
+}
+func (s NullStringScanner) String() string {
+	if s.Null() {
+		return ""
+	}
+	return s.NullString.String
 }
 
 type NullDateScanner struct{ sql.NullTime }
@@ -58,6 +64,12 @@ func (t *NullDateScanner) UnmarshalJSON(bytes []byte) error {
 		return err
 	}
 	return t.Scan(&a)
+}
+func (t NullDateScanner) String() string {
+	if t.Null() {
+		return ""
+	}
+	return t.NullTime.Time.UTC().Format(time.DateOnly)
 }
 
 type LocationScanner struct{ *time.Location }
