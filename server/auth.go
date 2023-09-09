@@ -6,44 +6,57 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
+	"net/url"
 )
 
 type UserHandler func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth)
 
 type UserAuth struct {
-	ID      uuid.UUID
 	Session session.Store
+	Data    SessionData
+}
+
+type SessionData struct {
+	ID      uuid.UUID
+	NeedOtp bool
+}
+
+func (u UserAuth) NextFlowUrl(origin *url.URL) *url.URL {
+	if u.Data.NeedOtp {
+		return PrepareRedirectUrl("/login/otp", origin)
+	}
+	return nil
 }
 
 func (u UserAuth) IsGuest() bool {
-	return u.ID == uuid.Nil
+	return u.Data.ID == uuid.Nil
 }
 
-func (h *HttpServer) RequireAuthentication(error string, code int, next UserHandler) httprouter.Handle {
-	return h.OptionalAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
+func (u UserAuth) SaveSessionData() error {
+	u.Session.Set("session-data", u.Data)
+	return u.Session.Save()
+}
+
+func (h *HttpServer) RequireAuthentication(next UserHandler) httprouter.Handle {
+	return h.OptionalAuthentication(false, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		if auth.IsGuest() {
-			http.Error(rw, error, code)
+			redirectUrl := PrepareRedirectUrl("/login", req.URL)
+			http.Redirect(rw, req, redirectUrl.String(), http.StatusFound)
 			return
 		}
 		next(rw, req, params, auth)
 	})
 }
 
-func (h *HttpServer) RequireAuthenticationRedirect(redirect string, code int, next UserHandler) httprouter.Handle {
-	return h.OptionalAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		if auth.IsGuest() {
-			http.Redirect(rw, req, redirect, code)
-			return
-		}
-		next(rw, req, params, auth)
-	})
-}
-
-func (h *HttpServer) OptionalAuthentication(next UserHandler) httprouter.Handle {
+func (h *HttpServer) OptionalAuthentication(flowPart bool, next UserHandler) httprouter.Handle {
 	return func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		auth, err := h.internalAuthenticationHandler(rw, req)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if n := auth.NextFlowUrl(req.URL); n != nil && !flowPart {
+			http.Redirect(rw, req, n.String(), http.StatusFound)
 			return
 		}
 		next(rw, req, params, auth)
@@ -56,17 +69,31 @@ func (h *HttpServer) internalAuthenticationHandler(rw http.ResponseWriter, req *
 		return UserAuth{}, fmt.Errorf("failed to start session")
 	}
 
-	userIdRaw, ok := ss.Get("user")
+	// get auth object
+	userIdRaw, ok := ss.Get("session-data")
 	if !ok {
 		return UserAuth{Session: ss}, nil
 	}
-	userId, ok := userIdRaw.(uuid.UUID)
+	userData, ok := userIdRaw.(SessionData)
 	if !ok {
-		ss.Delete("user")
+		ss.Delete("session-data")
 		err := ss.Save()
 		if err != nil {
 			return UserAuth{Session: ss}, fmt.Errorf("failed to reset invalid session data")
 		}
 	}
-	return UserAuth{ID: userId, Session: ss}, nil
+
+	return UserAuth{Session: ss, Data: userData}, nil
+}
+
+func PrepareRedirectUrl(targetPath string, origin *url.URL) *url.URL {
+	v := url.Values{}
+	orig := origin.Path
+	if origin.RawQuery != "" || origin.ForceQuery {
+		orig += "?" + origin.RawQuery
+	}
+	if orig != "" {
+		v.Set("redirect", orig)
+	}
+	return &url.URL{Path: targetPath, RawQuery: v.Encode()}
 }

@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"html/template"
 	"io"
+	"log"
 )
 
 var (
@@ -19,6 +20,9 @@ func LoadPageTemplates() (err error) {
 	return
 }
 
-func RenderPageTemplate(wr io.Writer, name string, data any) error {
-	return pageTemplate.ExecuteTemplate(wr, name+".go.html", data)
+func RenderPageTemplate(wr io.Writer, name string, data any) {
+	err := pageTemplate.ExecuteTemplate(wr, name+".go.html", data)
+	if err != nil {
+		log.Printf("Failed to render page: %s: %s\n", name, err)
+	}
 }

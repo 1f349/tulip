@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/1f349/tulip/password"
+	"github.com/1f349/twofactor"
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/google/uuid"
 	"time"
@@ -45,15 +46,16 @@ func (t *Tx) InsertUser(name, un, pw, email string) error {
 	return err
 }
 
-func (t *Tx) CheckLogin(un, pw string) (*User, error) {
+func (t *Tx) CheckLogin(un, pw string) (*User, bool, error) {
 	var u User
-	row := t.tx.QueryRow(`SELECT subject, password FROM users WHERE username = ? LIMIT 1`, un)
-	err := row.Scan(&u.Sub, &u.Password)
+	var hasOtp bool
+	row := t.tx.QueryRow(`SELECT subject, password, EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) FROM users WHERE username = ?`, un)
+	err := row.Scan(&u.Sub, &u.Password, &hasOtp)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	err = password.CheckPasswordHash(u.Password, pw)
-	return &u, err
+	return &u, hasOtp, err
 }
 
 func (t *Tx) GetUserDisplayName(sub uuid.UUID) (*User, error) {
@@ -66,10 +68,17 @@ func (t *Tx) GetUserDisplayName(sub uuid.UUID) (*User, error) {
 
 func (t *Tx) GetUser(sub uuid.UUID) (*User, error) {
 	var u User
-	row := t.tx.QueryRow(`SELECT name, username, password, picture, website, email, email_verified, pronouns, birthdate, zoneinfo, locale, updated_at, active FROM users WHERE subject = ? LIMIT 1`, sub.String())
+	row := t.tx.QueryRow(`SELECT name, username, password, picture, website, email, email_verified, pronouns, birthdate, zoneinfo, locale, updated_at, active FROM users WHERE subject = ?`, sub.String())
 	err := row.Scan(&u.Name, &u.Username, &u.Password, &u.Picture, &u.Website, &u.Email, &u.EmailVerified, &u.Pronouns, &u.Birthdate, &u.ZoneInfo, &u.Locale, &u.UpdatedAt, &u.Active)
 	u.Sub = sub
 	return &u, err
+}
+
+func (t *Tx) GetUserEmail(sub uuid.UUID) (string, error) {
+	var email string
+	row := t.tx.QueryRow(`SELECT email FROM users WHERE subject = ?`, sub.String())
+	err := row.Scan(&email)
+	return email, err
 }
 
 func (t *Tx) ChangeUserPassword(sub uuid.UUID, pwOld, pwNew string) error {
@@ -149,17 +158,40 @@ WHERE subject = ?`,
 	return nil
 }
 
+func (t *Tx) SetTwoFactor(sub uuid.UUID, totp *twofactor.Totp) error {
+	u, err := totp.ToBytes()
+	if err != nil {
+		return err
+	}
+	_, err = t.tx.Exec(`INSERT INTO otp(subject, raw) VALUES (?, ?) ON CONFLICT(subject) DO UPDATE SET raw = excluded.raw`, sub.String(), u)
+	return err
+}
+
+func (t *Tx) GetTwoFactor(sub uuid.UUID, issuer string) (*twofactor.Totp, error) {
+	var u []byte
+	row := t.tx.QueryRow(`SELECT raw FROM otp WHERE subject = ?`, sub.String())
+	err := row.Scan(&u)
+	if err != nil {
+		return nil, err
+	}
+	return twofactor.TOTPFromBytes(u, issuer)
+}
+
 func (t *Tx) GetClientInfo(sub string) (oauth2.ClientInfo, error) {
 	var u clientInfoDbOutput
-	row := t.tx.QueryRow(`SELECT secret, domain, sso, active FROM client_store WHERE subject = ? LIMIT 1`, sub)
-	err := row.Scan(&u.secret, &u.domain, &u.sso)
+	var active bool
+	row := t.tx.QueryRow(`SELECT secret, name, domain, sso, active FROM client_store WHERE subject = ? LIMIT 1`, sub)
+	err := row.Scan(&u.secret, &u.name, &u.domain, &u.sso, &active)
 	u.sub = sub
+	if !active {
+		return nil, fmt.Errorf("client is not active")
+	}
 	return &u, err
 }
 
 type clientInfoDbOutput struct {
-	sub, secret, domain string
-	sso                 bool
+	sub, name, secret, domain string
+	sso                       bool
 }
 
 func (c *clientInfoDbOutput) GetID() string     { return c.sub }
@@ -167,4 +199,11 @@ func (c *clientInfoDbOutput) GetSecret() string { return c.secret }
 func (c *clientInfoDbOutput) GetDomain() string { return c.domain }
 func (c *clientInfoDbOutput) IsPublic() bool    { return false }
 func (c *clientInfoDbOutput) GetUserID() string { return "" }
-func (c *clientInfoDbOutput) IsSSO() bool       { return c.sso }
+
+// IsSSO is an extra field for the oauth handler to skip the user input stage
+// this is for trusted applications to get permissions without asking the user
+func (c *clientInfoDbOutput) IsSSO() bool { return c.sso }
+
+// GetName is an extra field for the oauth handler to display the application
+// name
+func (c *clientInfoDbOutput) GetName() string { return c.name }

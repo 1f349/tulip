@@ -1,34 +1,21 @@
 package server
 
 import (
-	"fmt"
-	"github.com/go-session/session"
+	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/pages"
+	"github.com/1f349/tulip/scope"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"net/url"
 )
 
-func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	ss, err := session.Start(req.Context(), rw, req)
-	if err != nil {
-		http.Error(rw, "Failed to load session", http.StatusInternalServerError)
-		return
-	}
-
-	userID, err := h.oauthSrv.UserAuthorizationHandler(rw, req)
-	if err != nil {
-		http.Error(rw, "Failed to check user", http.StatusInternalServerError)
-		return
-	} else if userID == "" {
-		return
-	}
-
+func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
 	// function is only called with GET or POST method
 	isPost := req.Method == http.MethodPost
 
 	var form url.Values
 	if isPost {
-		err = req.ParseForm()
+		err := req.ParseForm()
 		if err != nil {
 			http.Error(rw, "Failed to parse form", http.StatusInternalServerError)
 			return
@@ -72,48 +59,62 @@ func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request
 
 	switch {
 	case isSSO && isPost:
-		http.Error(rw, "400 Bad Request", http.StatusBadRequest)
+		http.Error(rw, "400 Bad Request: Not sure how you even managed to send a POST request for an SSO application", http.StatusBadRequest)
 		return
 	case !isSSO && !isPost:
-		f := func(key string) string { return form.Get(key) }
+		// find application redirect domain and name
+		appUrlFull, err := url.Parse(client.GetDomain())
+		if err != nil {
+			http.Error(rw, "500 Internal Server Error: Failed to parse application redirect URL", http.StatusInternalServerError)
+			return
+		}
+		appDomain := appUrlFull.Scheme + "://" + appUrlFull.Host
+		appName := appUrlFull.Host
+		if clientGetName, ok := client.(interface{ GetName() string }); ok {
+			n := clientGetName.GetName()
+			if n != "" {
+				appName = n
+			}
+		}
+
+		var user *database.User
+		if h.DbTx(rw, func(tx *database.Tx) error {
+			var err error
+			user, err = tx.GetUserDisplayName(auth.Data.ID)
+			return err
+		}) {
+			return
+		}
+
 		rw.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(rw, `
-<!DOCTYPE html>
-<html>
-<head><title>Authorize</title></head>
-<body>
-<form method="POST" action="/authorize">
-  <input type="hidden" name="client_id" value="%s">
-  <input type="hidden" name="redirect_uri" value="%s">
-  <input type="hidden" name="scope" value="%s">
-  <input type="hidden" name="state" value="%s">
-  <input type="hidden" name="nonce" value="%s">
-  <input type="hidden" name="response_type" value="%s">
-  <input type="hidden" name="response_mode" value="%s">
-  <div>Scope: %s</div>
-  <div><button type="submit">Authorize</button></div>
-  <div><button type="submit" name="cancel" value="">Cancel</button></div>
-</form>
-</html>`, clientID, redirectUri, f("scope"), f("state"), f("nonce"), f("response_type"), f("response_mode"), f("scope"))
+		pages.RenderPageTemplate(rw, "oauth-authorize", map[string]any{
+			"AppName":      appName,
+			"AppDomain":    appDomain,
+			"User":         user,
+			"WantsList":    scope.FancyScopeList(form.Get("scope")),
+			"ResponseType": form.Get("response_type"),
+			"ResponseMode": form.Get("response_mode"),
+			"ClientID":     form.Get("client_id"),
+			"RedirectUri":  form.Get("redirect_uri"),
+			"State":        form.Get("state"),
+			"Scope":        form.Get("scope"),
+			"Nonce":        form.Get("nonce"),
+		})
 		return
-	default:
-		break
 	}
 
-	// continue flow
-	oauthDataRaw, ok := ss.Get("OAuthData")
-	if ok {
-		ss.Delete("OAuthData")
-		if ss.Save() != nil {
-			http.Error(rw, "Failed to save session", http.StatusInternalServerError)
+	// redirect with an error if the action is not authorize
+	if form.Get("oauth_action") != "authorize" {
+		redirectUri, err := url.Parse(form.Get("redirect_uri"))
+		if err != nil {
+			http.Error(rw, "400 Bad Request: Invalid redirect URI", http.StatusBadRequest)
 			return
 		}
-		oauthData, ok := oauthDataRaw.(url.Values)
-		if !ok {
-			http.Error(rw, "Failed to load session", http.StatusInternalServerError)
-			return
-		}
-		req.URL.RawQuery = oauthData.Encode()
+		q := redirectUri.Query()
+		q.Set("error", "user_cancelled")
+		redirectUri.RawQuery = q.Encode()
+		http.Redirect(rw, req, redirectUri.String(), http.StatusFound)
+		return
 	}
 
 	if err := h.oauthSrv.HandleAuthorizeRequest(rw, req); err != nil {
@@ -144,13 +145,10 @@ func (h *HttpServer) oauthUserAuthorization(rw http.ResponseWriter, req *http.Re
 			http.Error(rw, "405 Method Not Allowed", http.StatusMethodNotAllowed)
 			return "", err
 		}
-		auth.Session.Set("OAuthData", q)
-		if auth.Session.Save() != nil {
-			http.Error(rw, "Failed to save session", http.StatusInternalServerError)
-			return "", err
-		}
-		http.Redirect(rw, req, "/login?redirect=oauth", http.StatusFound)
+
+		redirectUrl := PrepareRedirectUrl("/login", &url.URL{Path: "/authorize", RawQuery: q.Encode()})
+		http.Redirect(rw, req, redirectUrl.String(), http.StatusFound)
 		return "", nil
 	}
-	return auth.ID.String(), nil
+	return auth.Data.ID.String(), nil
 }

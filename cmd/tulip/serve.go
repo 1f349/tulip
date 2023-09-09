@@ -8,7 +8,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	clientStore "github.com/1f349/tulip/client-store"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/server"
 	"github.com/1f349/violet/utils"
@@ -36,7 +35,7 @@ func (s *serveCmd) Usage() string {
 `
 }
 
-func (s *serveCmd) Execute(ctx context.Context, f *flag.FlagSet, args ...interface{}) subcommands.ExitStatus {
+func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcommands.ExitStatus {
 	log.Println("[Tulip] Starting...")
 
 	if s.configPath == "" {
@@ -83,9 +82,7 @@ func normalLoad(startUp startUpConfig, wd string) {
 		log.Fatal("[Tulip] Failed check:", err)
 	}
 
-	cs := clientStore.New(db)
-
-	srv := server.NewHttpServer(startUp.Listen, startUp.Domain, db, key, cs)
+	srv := server.NewHttpServer(startUp.Listen, startUp.Domain, startUp.OtpIssuer, db, key)
 	log.Printf("[Tulip] Starting HTTP server on '%s'\n", srv.Addr)
 	go utils.RunBackgroundHttp("HTTP", srv)
 

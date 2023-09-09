@@ -8,14 +8,15 @@
     <h1>1f349 ID</h1>
 </header>
 <main>
-    <form method="POST" action="">
+    <form method="POST" action="/login">
+        <input type="hidden" name="redirect" value="{{.Redirect}}"/>
         <div>
-            <label for="username">User Name</label>
-            <input type="text" name="username" id="username" required/>
+            <label for="field_username">User Name:</label>
+            <input type="text" name="username" id="field_username" required/>
         </div>
         <div>
-            <label for="password">Password</label>
-            <input type="password" name="password" id="password" required/>
+            <label for="field_password">Password:</label>
+            <input type="password" name="password" id="field_password" required/>
         </div>
         <button type="submit">Login</button>
     </form>

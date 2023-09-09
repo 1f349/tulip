@@ -3,6 +3,7 @@ module github.com/1f349/tulip
 go 1.20
 
 require (
+	github.com/1f349/twofactor v1.0.4
 	github.com/1f349/violet v0.0.9
 	github.com/MrMelon54/exit-reload v0.0.1
 	github.com/MrMelon54/pronouns v1.0.1
@@ -21,6 +22,9 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/sec51/convert v1.0.2 // indirect
+	github.com/sec51/gf256 v0.0.0-20160126143050-2454accbeb9e // indirect
+	github.com/sec51/qrcode v0.0.0-20160126144534-b7779abbcaf1 // indirect
 	github.com/tidwall/btree v1.6.0 // indirect
 	github.com/tidwall/buntdb v1.3.0 // indirect
 	github.com/tidwall/gjson v1.16.0 // indirect

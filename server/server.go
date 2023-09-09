@@ -2,24 +2,19 @@ package server
 
 import (
 	"crypto/subtle"
-	"database/sql"
 	_ "embed"
 	"encoding/json"
-	errors2 "errors"
 	"fmt"
+	clientStore "github.com/1f349/tulip/client-store"
 	"github.com/1f349/tulip/database"
-	"github.com/1f349/tulip/lists"
 	"github.com/1f349/tulip/openid"
 	"github.com/1f349/tulip/pages"
-	"github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
-	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
-	"golang.org/x/crypto/bcrypt"
 	"log"
 	"net/http"
 	"net/url"
@@ -29,15 +24,34 @@ import (
 var errMissingRequiredScope = errors.New("missing required scope")
 
 type HttpServer struct {
-	r        *httprouter.Router
-	oauthSrv *server.Server
-	oauthMgr *manage.Manager
-	db       *database.DB
-	domain   string
-	privKey  []byte
+	r         *httprouter.Router
+	oauthSrv  *server.Server
+	oauthMgr  *manage.Manager
+	db        *database.DB
+	domain    string
+	privKey   []byte
+	otpIssuer string
 }
 
-func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clientStore oauth2.ClientStore) *http.Server {
+func (h *HttpServer) SafeRedirect(rw http.ResponseWriter, req *http.Request) {
+	redirectUrl := req.FormValue("redirect")
+	if redirectUrl == "" {
+		http.Redirect(rw, req, "/", http.StatusFound)
+		return
+	}
+	parse, err := url.Parse(redirectUrl)
+	if err != nil {
+		http.Error(rw, "Failed to parse redirect url: "+redirectUrl, http.StatusBadRequest)
+		return
+	}
+	if parse.Scheme != "" && parse.Opaque != "" && parse.User != nil && parse.Host != "" {
+		http.Error(rw, "Invalid redirect url: "+redirectUrl, http.StatusBadRequest)
+		return
+	}
+	http.Redirect(rw, req, parse.String(), http.StatusFound)
+}
+
+func NewHttpServer(listen, domain, otpIssuer string, db *database.DB, privKey []byte) *http.Server {
 	r := httprouter.New()
 
 	openIdConf := openid.GenConfig(domain, []string{"openid", "email"}, []string{"sub", "name", "preferred_username", "profile", "picture", "website", "email", "email_verified", "gender", "birthdate", "zoneinfo", "locale", "updated_at"})
@@ -53,18 +67,19 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 	oauthManager := manage.NewDefaultManager()
 	oauthSrv := server.NewServer(server.NewConfig(), oauthManager)
 	hs := &HttpServer{
-		r:        httprouter.New(),
-		oauthSrv: oauthSrv,
-		oauthMgr: oauthManager,
-		db:       db,
-		domain:   domain,
-		privKey:  privKey,
+		r:         httprouter.New(),
+		oauthSrv:  oauthSrv,
+		oauthMgr:  oauthManager,
+		db:        db,
+		domain:    domain,
+		privKey:   privKey,
+		otpIssuer: otpIssuer,
 	}
 
 	oauthManager.SetAuthorizeCodeTokenCfg(manage.DefaultAuthorizeCodeTokenCfg)
 	oauthManager.MustTokenStorage(store.NewMemoryTokenStore())
 	oauthManager.MapAccessGenerate(generates.NewAccessGenerate())
-	oauthManager.MapClientStorage(clientStore)
+	oauthManager.MapClientStorage(clientStore.New(db))
 
 	oauthSrv.SetResponseErrorHandler(func(re *errors.Response) {
 		log.Printf("Response error: %#v\n", re)
@@ -98,47 +113,15 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 		rw.WriteHeader(http.StatusOK)
 		_, _ = rw.Write(openIdBytes)
 	})
-	r.GET("/", hs.OptionalAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		rw.Header().Set("Content-Type", "text/html")
-		rw.WriteHeader(http.StatusOK)
-		if auth.IsGuest() {
-			_ = pages.RenderPageTemplate(rw, "index-guest", nil)
-			return
-		}
-
-		lNonce := uuid.NewString()
-		auth.Session.Set("action-nonce", lNonce)
-		if auth.Session.Save() != nil {
-			http.Error(rw, "Failed to save session", http.StatusInternalServerError)
-			return
-		}
-
-		var userWithName *database.User
-		if hs.DbTx(rw, func(tx *database.Tx) (err error) {
-			userWithName, err = tx.GetUserDisplayName(auth.ID)
-			if err != nil {
-				return fmt.Errorf("failed to get user display name: %w", err)
-			}
-			return
-		}) {
-			return
-		}
-		if err := pages.RenderPageTemplate(rw, "index", map[string]any{
-			"Auth":  auth,
-			"User":  userWithName,
-			"Nonce": lNonce,
-		}); err != nil {
-			log.Printf("Failed to render page: edit: %s\n", err)
-		}
-	}))
-	r.POST("/logout", hs.RequireAuthentication("403 Forbidden", http.StatusForbidden, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
+	r.GET("/", hs.OptionalAuthentication(false, hs.Home))
+	r.POST("/logout", hs.RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		lNonce, ok := auth.Session.Get("action-nonce")
 		if !ok {
 			http.Error(rw, "Missing nonce", http.StatusInternalServerError)
 			return
 		}
 		if subtle.ConstantTimeCompare([]byte(lNonce.(string)), []byte(req.PostFormValue("nonce"))) == 1 {
-			auth.Session.Delete("user")
+			auth.Session.Delete("session-data")
 			if auth.Session.Save() != nil {
 				http.Error(rw, "Failed to save session", http.StatusInternalServerError)
 				return
@@ -148,130 +131,21 @@ func NewHttpServer(listen, domain string, db *database.DB, privKey []byte, clien
 		}
 		http.Error(rw, "Logout failed", http.StatusInternalServerError)
 	}))
-	r.GET("/login", hs.OptionalAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		if !auth.IsGuest() {
-			http.Redirect(rw, req, "/", http.StatusFound)
-			return
-		}
-		rw.Header().Set("Content-Type", "text/html")
-		rw.WriteHeader(http.StatusOK)
-		if err := pages.RenderPageTemplate(rw, "login", nil); err != nil {
-			log.Printf("Failed to render page: edit: %s\n", err)
-		}
-	}))
-	r.POST("/login", hs.OptionalAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		un := req.FormValue("username")
-		pw := req.FormValue("password")
-		var userSub uuid.UUID
-		if hs.DbTx(rw, func(tx *database.Tx) error {
-			loginUser, err := tx.CheckLogin(un, pw)
-			if err != nil {
-				if errors2.Is(err, sql.ErrNoRows) || errors2.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-					http.Redirect(rw, req, "/login?mismatch=1", http.StatusFound)
-					return nil
-				}
-				http.Error(rw, "Internal server error", http.StatusInternalServerError)
-				return err
-			}
-			userSub = loginUser.Sub
-			return nil
-		}) {
-			return
-		}
-
-		// only continues if the above tx succeeds
-		auth.Session.Set("user", userSub)
-		if auth.Session.Save() != nil {
-			http.Error(rw, "Failed to save session", http.StatusInternalServerError)
-			return
-		}
-
-		switch req.URL.Query().Get("redirect") {
-		case "oauth":
-			oauthDataRaw, ok := auth.Session.Get("OAuthData")
-			if !ok {
-				http.Error(rw, "Failed to load session", http.StatusInternalServerError)
-				return
-			}
-			oauthData, ok := oauthDataRaw.(url.Values)
-			if !ok {
-				http.Error(rw, "Failed to load session", http.StatusInternalServerError)
-				return
-			}
-			authUrl := url.URL{Path: "/authorize", RawQuery: oauthData.Encode()}
-			http.Redirect(rw, req, authUrl.String(), http.StatusFound)
-		default:
-			http.Redirect(rw, req, "/", http.StatusFound)
-		}
-	}))
-	r.GET("/authorize", hs.authorizeEndpoint)
-	r.POST("/authorize", hs.authorizeEndpoint)
+	r.GET("/login", hs.OptionalAuthentication(false, hs.LoginGet))
+	r.POST("/login", hs.OptionalAuthentication(false, hs.LoginPost))
+	r.GET("/login/otp", hs.OptionalAuthentication(true, hs.LoginOtpGet))
+	r.POST("/login/otp", hs.OptionalAuthentication(true, hs.LoginOtpPost))
+	r.GET("/authorize", hs.RequireAuthentication(hs.authorizeEndpoint))
+	r.POST("/authorize", hs.RequireAuthentication(hs.authorizeEndpoint))
 	r.POST("/token", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if err := oauthSrv.HandleTokenRequest(rw, req); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 		}
 	})
-	r.GET("/edit", hs.RequireAuthentication("403 Forbidden", http.StatusForbidden, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		var user *database.User
-
-		if hs.DbTx(rw, func(tx *database.Tx) error {
-			var err error
-			user, err = tx.GetUser(auth.ID)
-			if err != nil {
-				return fmt.Errorf("failed to read user data: %w", err)
-			}
-			return nil
-		}) {
-			return
-		}
-
-		lNonce := uuid.NewString()
-		auth.Session.Set("action-nonce", lNonce)
-		if auth.Session.Save() != nil {
-			http.Error(rw, "Failed to save session", http.StatusInternalServerError)
-			return
-		}
-		if err := pages.RenderPageTemplate(rw, "edit", map[string]any{
-			"User":         user,
-			"Nonce":        lNonce,
-			"FieldPronoun": user.Pronouns.String(),
-			"ListZoneInfo": lists.ListZoneInfo(),
-			"ListLocale":   lists.ListLocale(),
-		}); err != nil {
-			log.Printf("Failed to render page: edit: %s\n", err)
-		}
-	}))
-	r.POST("/edit", hs.RequireAuthentication("403 Forbidden", http.StatusForbidden, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		if req.ParseForm() != nil {
-			rw.WriteHeader(http.StatusBadRequest)
-			_, _ = rw.Write([]byte("400 Bad Request\n"))
-			return
-		}
-
-		var patch database.UserPatch
-		errs := patch.ParseFromForm(req.Form)
-		if len(errs) > 0 {
-			rw.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprintln(rw, "<!DOCTYPE html>\n<html>\n<body>")
-			_, _ = fmt.Fprintln(rw, "<p>400 Bad Request: Failed to parse form data, press the back button in your browser, check your inputs and try again.</p>")
-			_, _ = fmt.Fprintln(rw, "<ul>")
-			for _, i := range errs {
-				_, _ = fmt.Fprintf(rw, "  <li>%s</li>\n", i)
-			}
-			_, _ = fmt.Fprintln(rw, "</ul>")
-			_, _ = fmt.Fprintln(rw, "</body>\n</html>")
-			return
-		}
-		if hs.DbTx(rw, func(tx *database.Tx) error {
-			if err := tx.ModifyUser(auth.ID, &patch); err != nil {
-				return fmt.Errorf("failed to modify user info: %w", err)
-			}
-			return nil
-		}) {
-			return
-		}
-		http.Redirect(rw, req, "/edit", http.StatusFound)
-	}))
+	r.GET("/edit", hs.RequireAuthentication(hs.EditGet))
+	r.POST("/edit", hs.RequireAuthentication(hs.EditPost))
+	r.GET("/edit/otp", hs.RequireAuthentication(hs.EditOtpGet))
+	r.POST("/edit/otp", hs.RequireAuthentication(hs.EditOtpPost))
 	r.GET("/userinfo", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		token, err := oauthSrv.ValidationBearerToken(req)
 		if err != nil {

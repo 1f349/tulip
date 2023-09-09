@@ -13,19 +13,22 @@
         <div>
             <ul>
                 {{range .WantsList}}
-                    <li>{{.Label}}</li>
+                    <li>{{.}}</li>
                 {{end}}
             </ul>
         </div>
         <div>
             <input type="hidden" name="response_type" value="{{.ResponseType}}"/>
+            <input type="hidden" name="response_mode" value="{{.ResponseMode}}">
             <input type="hidden" name="client_id" value="{{.ClientID}}"/>
+            <input type="hidden" name="redirect_uri" value="{{.RedirectUri}}"/>
             <input type="hidden" name="state" value="{{.State}}"/>
-            <input type="hidden" name="scopes" value="{{.Scope}}"/>
+            <input type="hidden" name="scope" value="{{.Scope}}"/>
             <input type="hidden" name="nonce" value="{{.Nonce}}"/>
             <button class="oauth-action-authorize" name="oauth_action" value="authorize">Authorize</button>
             <button class="oauth-action-cancel" name="oauth_action" value="cancel">Cancel</button>
         </div>
+        <div>Authorizing this action will redirect you to {{.AppDomain}} with access to the permissions requested above.</div>
     </form>
 </main>
 </body>

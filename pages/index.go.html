@@ -13,6 +13,20 @@
         <button onclick="location.href='/edit'">Edit Profile</button>
     </div>
     <div>
+        <button onclick="location.href='/edit/username'">Change username</button>
+    </div>
+    <div>
+        <button onclick="location.href='/edit/password'">Change password</button>
+    </div>
+    <div>
+        <form method="GET" action="/edit/otp">
+            <label> <input type="radio" name="digits" value="6"/> 6 digits </label>
+            <label> <input type="radio" name="digits" value="7"/> 7 digits </label>
+            <label> <input type="radio" name="digits" value="8"/> 8 digits </label>
+            <button type="submit">Change OTP</button>
+        </form>
+    </div>
+    <div>
         <form method="POST" action="/logout">
             <input type="hidden" name="nonce" value="{{.Nonce}}">
             <button type="submit">Log Out</button>

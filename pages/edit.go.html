@@ -13,19 +13,19 @@
         <form method="POST" action="/edit">
             <input type="hidden" name="nonce" value="{{.Nonce}}">
             <div>
-                <label for="field_name">Name</label>
+                <label for="field_name">Name:</label>
                 <input type="text" name="name" id="field_name" value="{{.User.Name}}">
             </div>
             <div>
-                <label for="field_picture">Picture</label>
+                <label for="field_picture">Picture:</label>
                 <input type="text" name="picture" id="field_picture" value="{{.User.Picture}}">
             </div>
             <div>
-                <label for="field_website">Website</label>
+                <label for="field_website">Website:</label>
                 <input type="text" name="website" id="field_website" value="{{.User.Website}}">
             </div>
             <div>
-                <label for="field_pronouns">Pronouns</label>
+                <label for="field_pronouns">Pronouns:</label>
                 <select name="pronouns" id="field_pronouns">
                     <option value="they/them" {{if eq "they/them" .FieldPronoun}}selected{{end}}>They/Them</option>
                     <option value="he/him" {{if eq "he/him" .FieldPronoun}}selected{{end}}>He/Him</option>
@@ -36,12 +36,12 @@
                 <label>Reset? <input type="checkbox" name="reset_pronouns"></label>
             </div>
             <div>
-                <label for="field_birthdate">Birthdate</label>
+                <label for="field_birthdate">Birthdate:</label>
                 <input type="date" name="birthdate" id="field_birthdate" value="{{.User.Birthdate}}">
                 <label>Reset? <input type="checkbox" name="reset_birthdate"></label>
             </div>
             <div>
-                <label for="field_zoneinfo">Time Zone</label>
+                <label for="field_zoneinfo">Time Zone:</label>
                 <input type="text" name="zoneinfo" id="field_zoneinfo" value="{{.User.ZoneInfo}}" list="list_zoneinfo">
                 <datalist id="list_zoneinfo">
                     {{range .ListZoneInfo}}
@@ -51,7 +51,7 @@
                 <label>Reset? <input type="checkbox" name="reset_zoneinfo"></label>
             </div>
             <div>
-                <label for="field_locale">Language</label>
+                <label for="field_locale">Language:</label>
                 <input type="text" name="locale" id="field_locale" value="{{.User.Locale}}" list="list_locale">
                 <datalist id="list_locale">
                     {{range .ListLocale}}

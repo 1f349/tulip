@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users
     active         INTEGER DEFAULT 1
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS username_index ON users (username);
+
 CREATE TABLE IF NOT EXISTS client_store
 (
     subject TEXT PRIMARY KEY UNIQUE NOT NULL,
@@ -24,4 +26,11 @@ CREATE TABLE IF NOT EXISTS client_store
     domain  TEXT                    NOT NULL,
     sso     INTEGER,
     active  INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS otp
+(
+    subject TEXT PRIMARY KEY UNIQUE NOT NULL,
+    raw     BLOB                    NOT NULL,
+    FOREIGN KEY (subject) REFERENCES users (subject)
 );
