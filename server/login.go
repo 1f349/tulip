@@ -21,7 +21,8 @@ func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httpr
 	rw.Header().Set("Content-Type", "text/html")
 	rw.WriteHeader(http.StatusOK)
 	pages.RenderPageTemplate(rw, "login", map[string]any{
-		"Redirect": req.URL.Query().Get("redirect"),
+		"ServiceName": h.serviceName,
+		"Redirect":    req.URL.Query().Get("redirect"),
 	})
 }
 

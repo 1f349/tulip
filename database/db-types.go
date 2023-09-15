@@ -23,8 +23,30 @@ type User struct {
 	Birthdate     NullDateScanner   `json:"birthdate,omitempty"`
 	ZoneInfo      LocationScanner   `json:"zoneinfo,omitempty"`
 	Locale        LocaleScanner     `json:"locale,omitempty"`
+	Role          UserRole          `json:"role"`
 	UpdatedAt     time.Time         `json:"updated_at"`
 	Active        bool              `json:"active"`
+}
+
+type UserRole int
+
+const (
+	RoleMember UserRole = iota
+	RoleAdmin
+)
+
+func (r UserRole) String() string {
+	switch r {
+	case RoleMember:
+		return "Member"
+	case RoleAdmin:
+		return "Admin"
+	}
+	return fmt.Sprintf("UserRole{ %d }", r)
+}
+
+func (r UserRole) IsValid() bool {
+	return r == RoleMember || r == RoleAdmin
 }
 
 type UserPatch struct {

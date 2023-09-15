@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>1f349 ID</title>
+    <title>{{.ServiceName}}</title>
 </head>
 <body>
 <header>
-    <h1>1f349 ID</h1>
+    <h1>{{.ServiceName}}</h1>
 </header>
 <main>
     <div>Logged in as: {{.User.Name}} ({{.User.Sub}})</div>
@@ -61,6 +61,9 @@
                 <label>Reset? <input type="checkbox" name="reset_locale"></label>
             </div>
             <button type="submit">Edit</button>
+        </form>
+        <form method="GET" action="/">
+            <button type="submit">Cancel</button>
         </form>
     </div>
 </main>

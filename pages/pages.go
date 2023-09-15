@@ -16,7 +16,9 @@ var (
 )
 
 func LoadPageTemplates() (err error) {
-	pageTemplate, err = template.New("pages").ParseFS(embeddedTemplates, "*.go.html")
+	pageTemplate, err = template.New("pages").Funcs(template.FuncMap{
+		"emailHide": EmailHide,
+	}).ParseFS(embeddedTemplates, "*.go.html")
 	return
 }
 
@@ -25,4 +27,14 @@ func RenderPageTemplate(wr io.Writer, name string, data any) {
 	if err != nil {
 		log.Printf("Failed to render page: %s: %s\n", name, err)
 	}
+}
+
+func EmailHide(a string) string {
+	b := []byte(a)
+	for i := range b {
+		if b[i] != '@' && b[i] != '.' {
+			b[i] = 'x'
+		}
+	}
+	return string(b)
 }

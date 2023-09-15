@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>1f349 ID</title>
+    <title>{{.ServiceName}}</title>
 </head>
 <body>
 <header>
-    <h1>1f349 ID</h1>
+    <h1>{{.ServiceName}}</h1>
 </header>
 <main>
     <form method="POST" action="/authorize">
@@ -17,6 +17,12 @@
                 {{end}}
             </ul>
         </div>
+        {{if .HasOtp}}
+            <div>
+                <label for="field_code">OTP Code:</label>
+                <input type="text" name="code" id="field_code" required pattern="[0-9]{6,8}" title="6/7/8 digit one time passcode"/>
+            </div>
+        {{end}}
         <div>
             <input type="hidden" name="response_type" value="{{.ResponseType}}"/>
             <input type="hidden" name="response_mode" value="{{.ResponseMode}}">

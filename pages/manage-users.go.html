@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.ServiceName}}</title>
+</head>
+<body>
+<header>
+    <h1>{{.ServiceName}}</h1>
+</header>
+<main>
+    <form method="GET" action="/">
+        <button type="submit">Home</button>
+    </form>
+
+    {{if .Edit}}
+        <h2>Edit User</h2>
+        <form method="POST" action="/manage/users">
+            <input type="hidden" name="action" value="edit"/>
+            <input type="hidden" name="offset" value="{{.Offset}}"/>
+            <input type="hidden" name="subject" value="{{.Edit.Sub}}"/>
+            <div>
+                <label>ID: {{.Edit.Sub}}</label>
+            </div>
+            <div>
+                <label for="field_name">Name:</label>
+                <input type="text" name="name" id="field_name" value="{{.Edit.Name}}" required/>
+            </div>
+            <div>
+                <label for="field_username">Username:</label>
+                <input type="text" name="username" id="field_username" value="{{.Edit.Username}}" required/>
+            </div>
+            <div>
+                <label for="field_role">Role:</label>
+                <select name="role" id="field_role" required>
+                    <option value="member" {{if (eq .Edit.Role 0)}}selected{{end}}>Member</option>
+                    <option value="admin" {{if (eq .Edit.Role 1)}}selected{{end}}>Admin</option>
+                </select>
+            </div>
+            <div>
+                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active" checked/></label>
+            </div>
+            <button type="submit">Edit</button>
+        </form>
+        <form method="GET" action="/manage/users">
+            <input type="hidden" name="offset" value="{{.Offset}}"/>
+            <button type="submit">Cancel</button>
+        </form>
+    {{else}}
+        <h2>Manage Users</h2>
+        {{if eq (len .Users) 0}}
+            <div>No users found, this is definitely a bug.</div>
+        {{else}}
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Picture</th>
+                    <th>Website</th>
+                    <th>Email</th>
+                    <th>Email Verified</th>
+                    <th>Role</th>
+                    <th>Last Updated</th>
+                    <th>Active</th>
+                    <th>Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                {{range .Users}}
+                    <tr>
+                        <td>{{.Sub}}</td>
+                        <td>{{.Name}}</td>
+                        <td>{{.Username}}</td>
+                        <td>
+                            {{if .Picture}}
+                                <img src="{{.Picture}}" alt="{{.Name}} Profile Picture"/>
+                            {{end}}
+                        </td>
+                        <td><a href="{{.Website}}" target="_blank">{{.Website}}</a></td>
+                        <th>
+                            {{if $.EmailShow}}
+                                <span>{{.Email}}</span>
+                            {{else}}
+                                <span>{{emailHide .Email}}</span>
+                            {{end}}
+                        </th>
+                        <th>{{.EmailVerified}}</th>
+                        <th>{{.Role}}</th>
+                        <th>{{.UpdatedAt}}</th>
+                        <td>{{.Active}}</td>
+                        <td>
+                            {{if eq $.CurrentAdmin .Sub}}
+                                <span></span>
+                            {{else}}
+                                <form method="GET" action="/manage/users">
+                                    <input type="hidden" name="offset" value="{{$.Offset}}"/>
+                                    <input type="hidden" name="edit" value="{{.Sub}}"/>
+                                    <button type="submit">Edit</button>
+                                </form>
+                            {{end}}
+                        </td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+            <form method="GET" action="/manage/users">
+                <input type="hidden" name="offset" value="{{.Offset}}"/>
+                {{if not .EmailShow}}
+                    <input type="hidden" name="show-email"/>
+                {{end}}
+                <button type="submit">{{if .EmailShow}}Hide Email Addresses{{else}}Show email addresses{{end}}</button>
+            </form>
+        {{end}}
+
+        <h2>Create User</h2>
+        <form method="POST" action="/manage/users">
+            <input type="hidden" name="action" value="create"/>
+            <input type="hidden" name="offset" value="{{.Offset}}"/>
+            <div>
+                <label for="field_name">Name:</label>
+                <input type="text" name="name" id="field_name" required/>
+            </div>
+            <div>
+                <label for="field_username">Username:</label>
+                <input type="text" name="username" id="field_username" required/>
+            </div>
+            <div>
+                <label for="field_email">Email:</label>
+                <input type="text" name="email" id="field_email" required/>
+            </div>
+            <div>
+                <label for="field_role">Role:</label>
+                <select name="role" id="field_role" required>
+                    <option value="member" selected>Member</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div>
+                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active" checked/></label>
+            </div>
+            <button type="submit">Create</button>
+        </form>
+    {{end}}
+</main>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.Title}}</title>
+    <style>
+        #app > h1 {
+            text-decoration: underline;
+        }
+
+        @media screen and (prefers-color-scheme: dark) {
+            :root {
+                color: #d2d2d2;
+                background-color: #1c1b22;
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <h1>{{.Title}}</h1>
+    <p>Hi {{.Name}},</p>
+    <p>Here is your email verification code: <span>{{.Code}}</span></p>
+    <p>{{.ServiceName}}</p>
+</div>
+</body>
+</html>

@@ -13,7 +13,9 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 	rw.Header().Set("Content-Type", "text/html")
 	rw.WriteHeader(http.StatusOK)
 	if auth.IsGuest() {
-		pages.RenderPageTemplate(rw, "index-guest", nil)
+		pages.RenderPageTemplate(rw, "index-guest", map[string]any{
+			"ServiceName": h.serviceName,
+		})
 		return
 	}
 
@@ -35,8 +37,9 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 		return
 	}
 	pages.RenderPageTemplate(rw, "index", map[string]any{
-		"Auth":  auth,
-		"User":  userWithName,
-		"Nonce": lNonce,
+		"ServiceName": h.serviceName,
+		"Auth":        auth,
+		"User":        userWithName,
+		"Nonce":       lNonce,
 	})
 }

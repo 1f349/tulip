@@ -24,13 +24,14 @@ import (
 var errMissingRequiredScope = errors.New("missing required scope")
 
 type HttpServer struct {
-	r         *httprouter.Router
-	oauthSrv  *server.Server
-	oauthMgr  *manage.Manager
-	db        *database.DB
-	domain    string
-	privKey   []byte
-	otpIssuer string
+	r           *httprouter.Router
+	oauthSrv    *server.Server
+	oauthMgr    *manage.Manager
+	db          *database.DB
+	domain      string
+	privKey     []byte
+	otpIssuer   string
+	serviceName string
 }
 
 func (h *HttpServer) SafeRedirect(rw http.ResponseWriter, req *http.Request) {
@@ -51,7 +52,7 @@ func (h *HttpServer) SafeRedirect(rw http.ResponseWriter, req *http.Request) {
 	http.Redirect(rw, req, parse.String(), http.StatusFound)
 }
 
-func NewHttpServer(listen, domain, otpIssuer string, db *database.DB, privKey []byte) *http.Server {
+func NewHttpServer(listen, domain, otpIssuer, serviceName string, db *database.DB, privKey []byte) *http.Server {
 	r := httprouter.New()
 
 	openIdConf := openid.GenConfig(domain, []string{"openid", "email"}, []string{"sub", "name", "preferred_username", "profile", "picture", "website", "email", "email_verified", "gender", "birthdate", "zoneinfo", "locale", "updated_at"})
@@ -67,13 +68,14 @@ func NewHttpServer(listen, domain, otpIssuer string, db *database.DB, privKey []
 	oauthManager := manage.NewDefaultManager()
 	oauthSrv := server.NewServer(server.NewConfig(), oauthManager)
 	hs := &HttpServer{
-		r:         httprouter.New(),
-		oauthSrv:  oauthSrv,
-		oauthMgr:  oauthManager,
-		db:        db,
-		domain:    domain,
-		privKey:   privKey,
-		otpIssuer: otpIssuer,
+		r:           httprouter.New(),
+		oauthSrv:    oauthSrv,
+		oauthMgr:    oauthManager,
+		db:          db,
+		domain:      domain,
+		privKey:     privKey,
+		otpIssuer:   otpIssuer,
+		serviceName: serviceName,
 	}
 
 	oauthManager.SetAuthorizeCodeTokenCfg(manage.DefaultAuthorizeCodeTokenCfg)
@@ -113,8 +115,8 @@ func NewHttpServer(listen, domain, otpIssuer string, db *database.DB, privKey []
 		rw.WriteHeader(http.StatusOK)
 		_, _ = rw.Write(openIdBytes)
 	})
-	r.GET("/", hs.OptionalAuthentication(false, hs.Home))
-	r.POST("/logout", hs.RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
+	r.GET("/", OptionalAuthentication(false, hs.Home))
+	r.POST("/logout", RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		lNonce, ok := auth.Session.Get("action-nonce")
 		if !ok {
 			http.Error(rw, "Missing nonce", http.StatusInternalServerError)
@@ -131,21 +133,33 @@ func NewHttpServer(listen, domain, otpIssuer string, db *database.DB, privKey []
 		}
 		http.Error(rw, "Logout failed", http.StatusInternalServerError)
 	}))
-	r.GET("/login", hs.OptionalAuthentication(false, hs.LoginGet))
-	r.POST("/login", hs.OptionalAuthentication(false, hs.LoginPost))
-	r.GET("/login/otp", hs.OptionalAuthentication(true, hs.LoginOtpGet))
-	r.POST("/login/otp", hs.OptionalAuthentication(true, hs.LoginOtpPost))
-	r.GET("/authorize", hs.RequireAuthentication(hs.authorizeEndpoint))
-	r.POST("/authorize", hs.RequireAuthentication(hs.authorizeEndpoint))
+
+	// login steps
+	r.GET("/login", OptionalAuthentication(false, hs.LoginGet))
+	r.POST("/login", OptionalAuthentication(false, hs.LoginPost))
+	r.GET("/login/otp", OptionalAuthentication(true, hs.LoginOtpGet))
+	r.POST("/login/otp", OptionalAuthentication(true, hs.LoginOtpPost))
+
+	// edit profile pages
+	r.GET("/edit", RequireAuthentication(hs.EditGet))
+	r.POST("/edit", RequireAuthentication(hs.EditPost))
+	r.GET("/edit/otp", RequireAuthentication(hs.EditOtpGet))
+	r.POST("/edit/otp", RequireAuthentication(hs.EditOtpPost))
+
+	// management pages
+	r.GET("/manage/apps", hs.RequireAdminAuthentication(hs.ManageAppsGet))
+	r.POST("/manage/apps", hs.RequireAdminAuthentication(hs.ManageAppsPost))
+	r.GET("/manage/users", hs.RequireAdminAuthentication(hs.ManageUsersGet))
+	r.POST("/manage/users", hs.RequireAdminAuthentication(hs.ManageUsersPost))
+
+	// oauth pages
+	r.GET("/authorize", RequireAuthentication(hs.authorizeEndpoint))
+	r.POST("/authorize", RequireAuthentication(hs.authorizeEndpoint))
 	r.POST("/token", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if err := oauthSrv.HandleTokenRequest(rw, req); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 		}
 	})
-	r.GET("/edit", hs.RequireAuthentication(hs.EditGet))
-	r.POST("/edit", hs.RequireAuthentication(hs.EditPost))
-	r.GET("/edit/otp", hs.RequireAuthentication(hs.EditOtpGet))
-	r.POST("/edit/otp", hs.RequireAuthentication(hs.EditOtpPost))
 	r.GET("/userinfo", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		token, err := oauthSrv.ValidationBearerToken(req)
 		if err != nil {

@@ -78,16 +78,24 @@ func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request
 		}
 
 		var user *database.User
-		if h.DbTx(rw, func(tx *database.Tx) error {
-			var err error
+		var hasOtp bool
+		if h.DbTx(rw, func(tx *database.Tx) (err error) {
 			user, err = tx.GetUserDisplayName(auth.Data.ID)
-			return err
+			if err != nil {
+				return
+			}
+			hasOtp, err = tx.HasTwoFactor(auth.Data.ID)
+			if err != nil {
+				return
+			}
+			return
 		}) {
 			return
 		}
 
 		rw.WriteHeader(http.StatusOK)
 		pages.RenderPageTemplate(rw, "oauth-authorize", map[string]any{
+			"ServiceName":  h.serviceName,
 			"AppName":      appName,
 			"AppDomain":    appDomain,
 			"User":         user,
@@ -99,27 +107,35 @@ func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request
 			"State":        form.Get("state"),
 			"Scope":        form.Get("scope"),
 			"Nonce":        form.Get("nonce"),
+			"HasOtp":       hasOtp,
 		})
 		return
 	}
 
-	// redirect with an error if the action is not authorize
-	if form.Get("oauth_action") != "authorize" {
-		redirectUri, err := url.Parse(form.Get("redirect_uri"))
-		if err != nil {
-			http.Error(rw, "400 Bad Request: Invalid redirect URI", http.StatusBadRequest)
+	if !isSSO {
+		otpInput := req.FormValue("code")
+		if h.fetchAndValidateOtp(rw, auth.Data.ID, otpInput) {
 			return
 		}
-		q := redirectUri.Query()
-		q.Set("error", "user_cancelled")
-		redirectUri.RawQuery = q.Encode()
-		http.Redirect(rw, req, redirectUri.String(), http.StatusFound)
+	}
+
+	// redirect with an error if the action is not authorize
+	if form.Get("oauth_action") == "authorize" || isSSO {
+		if err := h.oauthSrv.HandleAuthorizeRequest(rw, req); err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+		}
 		return
 	}
 
-	if err := h.oauthSrv.HandleAuthorizeRequest(rw, req); err != nil {
-		http.Error(rw, err.Error(), http.StatusBadRequest)
+	parsedRedirect, err := url.Parse(redirectUri)
+	if err != nil {
+		http.Error(rw, "400 Bad Request: Invalid redirect URI", http.StatusBadRequest)
+		return
 	}
+	q := parsedRedirect.Query()
+	q.Set("error", "user_cancelled")
+	parsedRedirect.RawQuery = q.Encode()
+	http.Redirect(rw, req, parsedRedirect.String(), http.StatusFound)
 }
 
 func (h *HttpServer) oauthUserAuthorization(rw http.ResponseWriter, req *http.Request) (string, error) {
@@ -128,7 +144,7 @@ func (h *HttpServer) oauthUserAuthorization(rw http.ResponseWriter, req *http.Re
 		return "", err
 	}
 
-	auth, err := h.internalAuthenticationHandler(rw, req)
+	auth, err := internalAuthenticationHandler(rw, req)
 	if err != nil {
 		return "", err
 	}

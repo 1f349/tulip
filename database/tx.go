@@ -37,12 +37,12 @@ func (t *Tx) HasUser() error {
 	return nil
 }
 
-func (t *Tx) InsertUser(name, un, pw, email string) error {
+func (t *Tx) InsertUser(name, un, pw, email string, role UserRole, active bool) error {
 	pwHash, err := password.HashPassword(pw)
 	if err != nil {
 		return err
 	}
-	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email, updated_at) VALUES (?, ?, ?, ?, ?, ?)`, uuid.NewString(), name, un, pwHash, email, updatedAt())
+	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email, role, updated_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, uuid.NewString(), name, un, pwHash, email, role, updatedAt(), active)
 	return err
 }
 
@@ -64,6 +64,13 @@ func (t *Tx) GetUserDisplayName(sub uuid.UUID) (*User, error) {
 	err := row.Scan(&u.Name)
 	u.Sub = sub
 	return &u, err
+}
+
+func (t *Tx) GetUserRole(sub uuid.UUID) (UserRole, error) {
+	var r UserRole
+	row := t.tx.QueryRow(`SELECT role FROM users WHERE subject = ? LIMIT 1`, sub.String())
+	err := row.Scan(&r)
+	return r, err
 }
 
 func (t *Tx) GetUser(sub uuid.UUID) (*User, error) {
@@ -177,33 +184,111 @@ func (t *Tx) GetTwoFactor(sub uuid.UUID, issuer string) (*twofactor.Totp, error)
 	return twofactor.TOTPFromBytes(u, issuer)
 }
 
+func (t *Tx) HasTwoFactor(sub uuid.UUID) (bool, error) {
+	var hasOtp bool
+	row := t.tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM otp WHERE otp.subject = ?)`, sub)
+	err := row.Scan(&hasOtp)
+	if err != nil {
+		return false, err
+	}
+	return hasOtp, row.Err()
+}
+
 func (t *Tx) GetClientInfo(sub string) (oauth2.ClientInfo, error) {
-	var u clientInfoDbOutput
-	var active bool
+	var u ClientInfoDbOutput
 	row := t.tx.QueryRow(`SELECT secret, name, domain, sso, active FROM client_store WHERE subject = ? LIMIT 1`, sub)
-	err := row.Scan(&u.secret, &u.name, &u.domain, &u.sso, &active)
-	u.sub = sub
-	if !active {
+	err := row.Scan(&u.Secret, &u.Name, &u.Domain, &u.SSO, &u.Active)
+	u.Owner = sub
+	if !u.Active {
 		return nil, fmt.Errorf("client is not active")
 	}
 	return &u, err
 }
 
-type clientInfoDbOutput struct {
-	sub, name, secret, domain string
-	sso                       bool
+func (t *Tx) GetAppList(offset int) ([]ClientInfoDbOutput, error) {
+	var u []ClientInfoDbOutput
+	row, err := t.tx.Query(`SELECT subject, name, domain, owner, sso, active FROM client_store LIMIT 25 OFFSET ?`, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer row.Close()
+	for row.Next() {
+		var a ClientInfoDbOutput
+		err := row.Scan(&a.Sub, &a.Name, &a.Domain, &a.Owner, &a.SSO, &a.Active)
+		if err != nil {
+			return nil, err
+		}
+		u = append(u, a)
+	}
+	return u, row.Err()
 }
 
-func (c *clientInfoDbOutput) GetID() string     { return c.sub }
-func (c *clientInfoDbOutput) GetSecret() string { return c.secret }
-func (c *clientInfoDbOutput) GetDomain() string { return c.domain }
-func (c *clientInfoDbOutput) IsPublic() bool    { return false }
-func (c *clientInfoDbOutput) GetUserID() string { return "" }
+func (t *Tx) InsertClientApp(name, domain string, sso, active bool, owner uuid.UUID) error {
+	u := uuid.New()
+	secret, err := password.GenerateApiSecret(70)
+	if err != nil {
+		return err
+	}
+	_, err = t.tx.Exec(`INSERT INTO client_store (subject, name, secret, domain, owner, sso, active) VALUES (?, ?, ?, ?, ?, ?, ?)`, u.String(), name, secret, domain, owner.String(), sso, active)
+	return err
+}
 
-// IsSSO is an extra field for the oauth handler to skip the user input stage
-// this is for trusted applications to get permissions without asking the user
-func (c *clientInfoDbOutput) IsSSO() bool { return c.sso }
+func (t *Tx) UpdateClientApp(subject uuid.UUID, name, domain string, sso, active bool) error {
+	_, err := t.tx.Exec(`UPDATE client_store SET name = ?, domain = ?, sso = ?, active = ? WHERE subject = ?`, name, domain, sso, active, subject.String())
+	return err
+}
+
+func (t *Tx) ResetClientAppSecret(subject uuid.UUID, secret string) error {
+	secret, err := password.GenerateApiSecret(70)
+	if err != nil {
+		return err
+	}
+	_, err = t.tx.Exec(`UPDATE client_store SET secret = ? WHERE subject = ?`, secret, subject.String())
+	return err
+}
+
+func (t *Tx) GetUserList(offset int) ([]User, error) {
+	var u []User
+	row, err := t.tx.Query(`SELECT subject, name, username, picture, website, email, email_verified, pronouns, birthdate, zoneinfo, locale, role, updated_at, active FROM users LIMIT 25 OFFSET ?`, offset)
+	if err != nil {
+		return nil, err
+	}
+	for row.Next() {
+		var a User
+		err := row.Scan(&a.Sub, &a.Name, &a.Username, &a.Picture, &a.Website, &a.Email, &a.EmailVerified, &a.Pronouns, &a.Birthdate, &a.ZoneInfo, &a.Locale, &a.Role, &a.UpdatedAt, &a.Active)
+		if err != nil {
+			return nil, err
+		}
+		u = append(u, a)
+	}
+	return u, row.Err()
+}
+
+func (t *Tx) UpdateUser(subject uuid.UUID, role UserRole, active bool) error {
+	_, err := t.tx.Exec(`UPDATE users SET active = ?, role = ? WHERE subject = ?`, active, role, subject)
+	return err
+}
+
+type ClientInfoDbOutput struct {
+	Sub, Name, Secret, Domain, Owner string
+	SSO, Active                      bool
+}
+
+var _ oauth2.ClientInfo = &ClientInfoDbOutput{}
+
+func (c *ClientInfoDbOutput) GetID() string     { return c.Sub }
+func (c *ClientInfoDbOutput) GetSecret() string { return c.Secret }
+func (c *ClientInfoDbOutput) GetDomain() string { return c.Domain }
+func (c *ClientInfoDbOutput) IsPublic() bool    { return false }
+func (c *ClientInfoDbOutput) GetUserID() string { return c.Owner }
 
 // GetName is an extra field for the oauth handler to display the application
 // name
-func (c *clientInfoDbOutput) GetName() string { return c.name }
+func (c *ClientInfoDbOutput) GetName() string { return c.Name }
+
+// IsSSO is an extra field for the oauth handler to skip the user input stage
+// this is for trusted applications to get permissions without asking the user
+func (c *ClientInfoDbOutput) IsSSO() bool { return c.SSO }
+
+// IsActive is an extra field for the app manager to get the active state
+func (c *ClientInfoDbOutput) IsActive() bool { return c.Active }

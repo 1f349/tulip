@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/1f349/tulip/database"
 	"github.com/go-session/session"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
@@ -37,8 +38,25 @@ func (u UserAuth) SaveSessionData() error {
 	return u.Session.Save()
 }
 
-func (h *HttpServer) RequireAuthentication(next UserHandler) httprouter.Handle {
-	return h.OptionalAuthentication(false, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
+func (h *HttpServer) RequireAdminAuthentication(next UserHandler) httprouter.Handle {
+	return RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
+		var role database.UserRole
+		if h.DbTx(rw, func(tx *database.Tx) (err error) {
+			role, err = tx.GetUserRole(auth.Data.ID)
+			return
+		}) {
+			return
+		}
+		if role != database.RoleAdmin {
+			http.Error(rw, "403 Forbidden", http.StatusForbidden)
+			return
+		}
+		next(rw, req, params, auth)
+	})
+}
+
+func RequireAuthentication(next UserHandler) httprouter.Handle {
+	return OptionalAuthentication(false, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		if auth.IsGuest() {
 			redirectUrl := PrepareRedirectUrl("/login", req.URL)
 			http.Redirect(rw, req, redirectUrl.String(), http.StatusFound)
@@ -48,9 +66,9 @@ func (h *HttpServer) RequireAuthentication(next UserHandler) httprouter.Handle {
 	})
 }
 
-func (h *HttpServer) OptionalAuthentication(flowPart bool, next UserHandler) httprouter.Handle {
+func OptionalAuthentication(flowPart bool, next UserHandler) httprouter.Handle {
 	return func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		auth, err := h.internalAuthenticationHandler(rw, req)
+		auth, err := internalAuthenticationHandler(rw, req)
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
@@ -63,7 +81,7 @@ func (h *HttpServer) OptionalAuthentication(flowPart bool, next UserHandler) htt
 	}
 }
 
-func (h *HttpServer) internalAuthenticationHandler(rw http.ResponseWriter, req *http.Request) (UserAuth, error) {
+func internalAuthenticationHandler(rw http.ResponseWriter, req *http.Request) (UserAuth, error) {
 	ss, err := session.Start(req.Context(), rw, req)
 	if err != nil {
 		return UserAuth{}, fmt.Errorf("failed to start session")

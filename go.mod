@@ -7,6 +7,9 @@ require (
 	github.com/1f349/violet v0.0.9
 	github.com/MrMelon54/exit-reload v0.0.1
 	github.com/MrMelon54/pronouns v1.0.1
+	github.com/emersion/go-message v0.17.0
+	github.com/emersion/go-sasl v0.0.0-20220912192320-0145f2c60ead
+	github.com/emersion/go-smtp v0.18.1
 	github.com/go-oauth2/oauth2/v4 v4.5.2
 	github.com/go-session/session v3.1.2+incompatible
 	github.com/google/subcommands v1.2.0
@@ -20,6 +23,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sec51/convert v1.0.2 // indirect

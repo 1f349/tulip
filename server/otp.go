@@ -6,6 +6,7 @@ import (
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
 	"github.com/1f349/twofactor"
+	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"html/template"
 	"net/http"
@@ -18,7 +19,8 @@ func (h *HttpServer) LoginOtpGet(rw http.ResponseWriter, req *http.Request, _ ht
 	}
 
 	pages.RenderPageTemplate(rw, "login-otp", map[string]any{
-		"Redirect": req.URL.Query().Get("redirect"),
+		"ServiceName": h.serviceName,
+		"Redirect":    req.URL.Query().Get("redirect"),
 	})
 }
 
@@ -29,18 +31,7 @@ func (h *HttpServer) LoginOtpPost(rw http.ResponseWriter, req *http.Request, _ h
 	}
 
 	otpInput := req.FormValue("code")
-
-	var otp *twofactor.Totp
-	if h.DbTx(rw, func(tx *database.Tx) (err error) {
-		otp, err = tx.GetTwoFactor(auth.Data.ID, h.otpIssuer)
-		return err
-	}) {
-		return
-	}
-
-	err := otp.Validate(otpInput)
-	if err != nil {
-
+	if h.fetchAndValidateOtp(rw, auth.Data.ID, otpInput) {
 		return
 	}
 
@@ -51,6 +42,39 @@ func (h *HttpServer) LoginOtpPost(rw http.ResponseWriter, req *http.Request, _ h
 	}
 
 	h.SafeRedirect(rw, req)
+}
+
+func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub uuid.UUID, code string) bool {
+	var hasOtp bool
+	var otp *twofactor.Totp
+	if h.DbTx(rw, func(tx *database.Tx) (err error) {
+		hasOtp, err = tx.HasTwoFactor(sub)
+		if err != nil {
+			return
+		}
+		if hasOtp {
+			otp, err = tx.GetTwoFactor(sub, h.otpIssuer)
+		}
+		return
+	}) {
+		return true
+	}
+
+	if hasOtp {
+		defer func() {
+			h.DbTx(rw, func(tx *database.Tx) error {
+				return tx.SetTwoFactor(sub, otp)
+			})
+		}()
+
+		err := otp.Validate(code)
+		if err != nil {
+			http.Error(rw, "400 Bad Request: Invalid OTP code", http.StatusBadRequest)
+			return true
+		}
+	}
+
+	return false
 }
 
 func (h *HttpServer) EditOtpGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
@@ -126,8 +150,9 @@ func (h *HttpServer) EditOtpGet(rw http.ResponseWriter, req *http.Request, _ htt
 
 	// render page
 	pages.RenderPageTemplate(rw, "edit-otp", map[string]any{
-		"OtpQr":  template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(otpQr)),
-		"OtpUrl": otpUrl,
+		"ServiceName": h.serviceName,
+		"OtpQr":       template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(otpQr)),
+		"OtpUrl":      otpUrl,
 	})
 }
 
@@ -155,5 +180,5 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 		return
 	}
 
-	http.Redirect(rw, req, "/edit", http.StatusFound)
+	http.Redirect(rw, req, "/", http.StatusFound)
 }
