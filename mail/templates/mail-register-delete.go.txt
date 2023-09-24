@@ -1,0 +1,10 @@
+Hello, {{.Name}}
+
+Your email address has been registered with {{.ServiceName}}.
+
+To log into your account please use this link to reset your password: {{.Data.ResetUrl}}
+
+If you did not wish to register for {{.ServiceName}}, please fill out this account deletion form: {{.Data.DeleteUrl}}
+
+Regards,
+{{.ServiceName}}

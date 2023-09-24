@@ -5,23 +5,29 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/1f349/cache"
 	clientStore "github.com/1f349/tulip/client-store"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/mail"
+	"github.com/1f349/tulip/mail/templates"
 	"github.com/1f349/tulip/openid"
 	"github.com/1f349/tulip/pages"
+	scope2 "github.com/1f349/tulip/scope"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
+	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
-var errMissingRequiredScope = errors.New("missing required scope")
+var errInvalidScope = errors.New("missing required scope")
 
 type HttpServer struct {
 	r           *httprouter.Router
@@ -32,6 +38,21 @@ type HttpServer struct {
 	privKey     []byte
 	otpIssuer   string
 	serviceName string
+	mailer      mail.Mail
+
+	// mailLinkCache contains a mapping of verify uuids to user uuids
+	mailLinkCache *cache.Cache[mailLinkKey, uuid.UUID]
+}
+
+const (
+	mailLinkDelete byte = iota
+	mailLinkResetPassword
+	mailLinkVerifyEmail
+)
+
+type mailLinkKey struct {
+	action byte
+	data   uuid.UUID
 }
 
 func (h *HttpServer) SafeRedirect(rw http.ResponseWriter, req *http.Request) {
@@ -52,10 +73,10 @@ func (h *HttpServer) SafeRedirect(rw http.ResponseWriter, req *http.Request) {
 	http.Redirect(rw, req, parse.String(), http.StatusFound)
 }
 
-func NewHttpServer(listen, domain, otpIssuer, serviceName string, db *database.DB, privKey []byte) *http.Server {
+func NewHttpServer(listen, domain, otpIssuer, serviceName string, mailer mail.Mail, db *database.DB, privKey []byte) *http.Server {
 	r := httprouter.New()
 
-	openIdConf := openid.GenConfig(domain, []string{"openid", "email"}, []string{"sub", "name", "preferred_username", "profile", "picture", "website", "email", "email_verified", "gender", "birthdate", "zoneinfo", "locale", "updated_at"})
+	openIdConf := openid.GenConfig(domain, []string{"openid", "name", "username", "profile", "email", "birthdate", "age", "zoneinfo", "locale"}, []string{"sub", "name", "preferred_username", "profile", "picture", "website", "email", "email_verified", "gender", "birthdate", "zoneinfo", "locale", "updated_at"})
 	openIdBytes, err := json.Marshal(openIdConf)
 	if err != nil {
 		log.Fatalln("Failed to generate OpenID configuration:", err)
@@ -63,6 +84,9 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, db *database.D
 
 	if err := pages.LoadPageTemplates(); err != nil {
 		log.Fatalln("Failed to load page templates:", err)
+	}
+	if err := templates.LoadMailTemplates(); err != nil {
+		log.Fatalln("Failed to load mail templates:", err)
 	}
 
 	oauthManager := manage.NewDefaultManager()
@@ -76,6 +100,9 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, db *database.D
 		privKey:     privKey,
 		otpIssuer:   otpIssuer,
 		serviceName: serviceName,
+		mailer:      mailer,
+
+		mailLinkCache: cache.New[mailLinkKey, uuid.UUID](),
 	}
 
 	oauthManager.SetAuthorizeCodeTokenCfg(manage.DefaultAuthorizeCodeTokenCfg)
@@ -105,8 +132,8 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, db *database.D
 			form = req.URL.Query()
 		}
 		a := form.Get("scope")
-		if a != "openid" {
-			return "", errMissingRequiredScope
+		if !scope2.ScopesExist(a) {
+			return "", errInvalidScope
 		}
 		return "openid", nil
 	})
@@ -140,6 +167,11 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, db *database.D
 	r.GET("/login/otp", OptionalAuthentication(true, hs.LoginOtpGet))
 	r.POST("/login/otp", OptionalAuthentication(true, hs.LoginOtpPost))
 
+	// mail codes
+	r.GET("/mail/verify/:code", hs.MailVerify)
+	r.GET("/mail/password/:code", hs.MailPassword)
+	r.GET("/mail/delete/:code", hs.MailDelete)
+
 	// edit profile pages
 	r.GET("/edit", RequireAuthentication(hs.EditGet))
 	r.POST("/edit", RequireAuthentication(hs.EditPost))
@@ -166,23 +198,62 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, db *database.D
 			http.Error(rw, "403 Forbidden", http.StatusForbidden)
 			return
 		}
-		fmt.Printf("Using token for user: %s by app: %s with scope: '%s'\n", token.GetUserID(), token.GetClientID(), token.GetScope())
-		_ = json.NewEncoder(rw).Encode(map[string]any{
-			"sub":                token.GetUserID(),
-			"aud":                token.GetClientID(),
-			"name":               "Melon",
-			"preferred_username": "melon",
-			"profile":            "https://" + domain + "/user/melon",
-			"picture":            "https://" + domain + "/picture/melon.svg",
-			"website":            "https://mrmelon54.com",
-			"email":              "melon@mrmelon54.com",
-			"email_verified":     true,
-			"gender":             "male",
-			"birthdate":          time.Now().Format(time.DateOnly),
-			"zoneinfo":           "Europe/London",
-			"locale":             "en-GB",
-			"updated_at":         time.Now().Unix(),
-		})
+		userId := token.GetUserID()
+		userUuid, err := uuid.Parse(userId)
+		if err != nil {
+			http.Error(rw, "Invalid User ID", http.StatusBadRequest)
+			return
+		}
+
+		fmt.Printf("Using token for user: %s by app: %s with scope: '%s'\n", userId, token.GetClientID(), token.GetScope())
+		claims := ParseClaims(token.GetScope())
+		if !claims["openid"] {
+			http.Error(rw, "Invalid scope", http.StatusBadRequest)
+			return
+		}
+
+		var userData *database.User
+
+		if hs.DbTx(rw, func(tx *database.Tx) (err error) {
+			userData, err = tx.GetUser(userUuid)
+			return err
+		}) {
+			return
+		}
+
+		m := map[string]any{}
+		m["sub"] = userId
+		m["aud"] = token.GetClientID()
+		if claims["name"] {
+			m["name"] = userData.Name
+		}
+		if claims["username"] {
+			m["preferred_username"] = userData.Name
+		}
+		if claims["profile"] {
+			m["profile"] = domain + "/user/" + userData.Username
+			m["picture"] = userData.Picture.String()
+			m["website"] = userData.Website.String()
+		}
+		if claims["email"] {
+			m["email"] = userData.Email
+			m["email_verified"] = userData.EmailVerified
+		}
+		if claims["birthdate"] {
+			m["birthdate"] = userData.Birthdate.String()
+		}
+		if claims["age"] {
+			m["age"] = CalculateAge(userData.Birthdate.Time.In(userData.ZoneInfo.Location))
+		}
+		if claims["zoneinfo"] {
+			m["zoneinfo"] = userData.ZoneInfo.Location.String()
+		}
+		if claims["locale"] {
+			m["locale"] = userData.Locale.Tag.String()
+		}
+		m["updated_at"] = time.Now().Unix()
+
+		_ = json.NewEncoder(rw).Encode(m)
 	})
 
 	return &http.Server{
@@ -194,4 +265,48 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, db *database.D
 		IdleTimeout:       time.Minute,
 		MaxHeaderBytes:    2500,
 	}
+}
+
+func ParseClaims(claims string) map[string]bool {
+	m := make(map[string]bool)
+	for {
+		n := strings.IndexByte(claims, ' ')
+		if n == -1 {
+			if claims != "" {
+				m[claims] = true
+			}
+			break
+		}
+
+		a := claims[:n]
+		claims = claims[n+1:]
+		if a != "" {
+			m[a] = true
+		}
+	}
+
+	return m
+}
+
+var ageTimeNow = func() time.Time { return time.Now() }
+
+func CalculateAge(t time.Time) int {
+	n := ageTimeNow()
+
+	// the birthday is in the future so the age is 0
+	if n.Before(t) {
+		return 0
+	}
+
+	// the year difference
+	dy := n.Year() - t.Year()
+
+	// the birthday in the current year
+	tCurrent := t.AddDate(dy, 0, 0)
+
+	// minus 1 if the birthday has not yet occurred in the current year
+	if tCurrent.Before(n) {
+		dy -= 1
+	}
+	return dy
 }

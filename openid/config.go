@@ -1,5 +1,9 @@
 package openid
 
+import (
+	"strings"
+)
+
 type Config struct {
 	Issuer                 string   `json:"issuer"`
 	AuthorizationEndpoint  string   `json:"authorization_endpoint"`
@@ -11,12 +15,17 @@ type Config struct {
 	GrantTypesSupported    []string `json:"grant_types_supported"`
 }
 
-func GenConfig(domain string, scopes, claims []string) Config {
+func GenConfig(baseUrl string, scopes, claims []string) Config {
+	baseUrlRaw := baseUrl
+	if !strings.HasSuffix(baseUrl, "/") {
+		baseUrl += "/"
+	}
+
 	return Config{
-		Issuer:                 "https://" + domain,
-		AuthorizationEndpoint:  "https://" + domain + "/authorize",
-		TokenEndpoint:          "https://" + domain + "/token",
-		UserInfoEndpoint:       "https://" + domain + "/userinfo",
+		Issuer:                 baseUrlRaw,
+		AuthorizationEndpoint:  baseUrl + "authorize",
+		TokenEndpoint:          baseUrl + "token",
+		UserInfoEndpoint:       baseUrl + "userinfo",
 		ResponseTypesSupported: []string{"code"},
 		ScopesSupported:        scopes,
 		ClaimsSupported:        claims,

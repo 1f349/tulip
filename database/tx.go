@@ -37,25 +37,26 @@ func (t *Tx) HasUser() error {
 	return nil
 }
 
-func (t *Tx) InsertUser(name, un, pw, email string, role UserRole, active bool) error {
+func (t *Tx) InsertUser(name, un, pw, email string, role UserRole, active bool) (uuid.UUID, error) {
 	pwHash, err := password.HashPassword(pw)
 	if err != nil {
-		return err
+		return uuid.UUID{}, err
 	}
-	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email, role, updated_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, uuid.NewString(), name, un, pwHash, email, role, updatedAt(), active)
-	return err
+	u := uuid.New()
+	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email, role, updated_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, u, name, un, pwHash, email, role, updatedAt(), active)
+	return u, err
 }
 
-func (t *Tx) CheckLogin(un, pw string) (*User, bool, error) {
+func (t *Tx) CheckLogin(un, pw string) (*User, bool, bool, error) {
 	var u User
-	var hasOtp bool
-	row := t.tx.QueryRow(`SELECT subject, password, EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) FROM users WHERE username = ?`, un)
-	err := row.Scan(&u.Sub, &u.Password, &hasOtp)
+	var hasOtp, hasVerify bool
+	row := t.tx.QueryRow(`SELECT subject, password, EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject), email, email_verified FROM users WHERE username = ?`, un)
+	err := row.Scan(&u.Sub, &u.Password, &hasOtp, &u.Email, &hasVerify)
 	if err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
 	err = password.CheckPasswordHash(u.Password, pw)
-	return &u, hasOtp, err
+	return &u, hasOtp, hasVerify, err
 }
 
 func (t *Tx) GetUserDisplayName(sub uuid.UUID) (*User, error) {
@@ -269,26 +270,12 @@ func (t *Tx) UpdateUser(subject uuid.UUID, role UserRole, active bool) error {
 	return err
 }
 
+func (t *Tx) VerifyUserEmail(sub uuid.UUID) error {
+	_, err := t.tx.Exec(`UPDATE users SET email_verified = 1 WHERE subject = ?`, sub.String())
+	return err
+}
+
 type ClientInfoDbOutput struct {
 	Sub, Name, Secret, Domain, Owner string
 	SSO, Active                      bool
 }
-
-var _ oauth2.ClientInfo = &ClientInfoDbOutput{}
-
-func (c *ClientInfoDbOutput) GetID() string     { return c.Sub }
-func (c *ClientInfoDbOutput) GetSecret() string { return c.Secret }
-func (c *ClientInfoDbOutput) GetDomain() string { return c.Domain }
-func (c *ClientInfoDbOutput) IsPublic() bool    { return false }
-func (c *ClientInfoDbOutput) GetUserID() string { return c.Owner }
-
-// GetName is an extra field for the oauth handler to display the application
-// name
-func (c *ClientInfoDbOutput) GetName() string { return c.Name }
-
-// IsSSO is an extra field for the oauth handler to skip the user input stage
-// this is for trusted applications to get permissions without asking the user
-func (c *ClientInfoDbOutput) IsSSO() bool { return c.SSO }
-
-// IsActive is an extra field for the app manager to get the active state
-func (c *ClientInfoDbOutput) IsActive() bool { return c.Active }

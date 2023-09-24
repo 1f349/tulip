@@ -1,8 +1,9 @@
 module github.com/1f349/tulip
 
-go 1.20
+go 1.21.1
 
 require (
+	github.com/1f349/cache v0.0.2
 	github.com/1f349/twofactor v1.0.4
 	github.com/1f349/violet v0.0.9
 	github.com/MrMelon54/exit-reload v0.0.1
@@ -22,6 +23,7 @@ require (
 )
 
 require (
+	github.com/MrMelon54/rescheduler v0.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emersion/go-textwrapper v0.0.0-20200911093747-65d896831594 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect

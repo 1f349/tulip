@@ -1,0 +1,8 @@
+Hello, {{.Name}}
+
+Please open this link to verify your email address: {{.Data.VerifyUrl}}
+
+This link is valid for 10 minutes.
+
+Regards,
+{{.ServiceName}}

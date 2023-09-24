@@ -4,11 +4,14 @@ import (
 	"errors"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
+	"github.com/emersion/go-message/mail"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 func (h *HttpServer) ManageUsersGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
@@ -97,9 +100,32 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 
 	switch action {
 	case "create":
-		if h.DbTx(rw, func(tx *database.Tx) error {
-			return tx.InsertUser(name, username, "", email, newRole, active)
+		var userSub uuid.UUID
+		if h.DbTx(rw, func(tx *database.Tx) (err error) {
+			userSub, err = tx.InsertUser(name, username, "", email, newRole, active)
+			return err
 		}) {
+			return
+		}
+
+		// parse email for headers
+		address, err := mail.ParseAddress(email)
+		if err != nil {
+			http.Error(rw, "500 Internal Server Error: Failed to parse user email address", http.StatusInternalServerError)
+			return
+		}
+
+		u, u2 := uuid.New(), uuid.New()
+		h.mailLinkCache.Set(mailLinkKey{mailLinkResetPassword, u}, userSub, time.Now().Add(10*time.Minute))
+		h.mailLinkCache.Set(mailLinkKey{mailLinkDelete, u2}, userSub, time.Now().Add(10*time.Minute))
+
+		err = h.mailer.SendEmailTemplate("mail-register-delete", "Register", name, address, map[string]any{
+			"ResetUrl":  h.domain + "/mail/password/" + u.String(),
+			"DeleteUrl": h.domain + "/mail/delete/" + u2.String(),
+		})
+		if err != nil {
+			log.Println("[Tulip] Login: Failed to send register email:", err)
+			http.Error(rw, "500 Internal Server Error: Failed to send register email", http.StatusInternalServerError)
 			return
 		}
 	case "edit":

@@ -1,4 +1,4 @@
 *.sqlite
 *.local
-.data
+.data/
 .idea/

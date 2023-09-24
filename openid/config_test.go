@@ -15,5 +15,5 @@ func TestGenConfig(t *testing.T) {
 		ScopesSupported:        []string{"openid", "email"},
 		ClaimsSupported:        []string{"name", "email", "preferred_username"},
 		GrantTypesSupported:    []string{"authorization_code", "refresh_token"},
-	}, GenConfig("example.com", []string{"openid", "email"}, []string{"name", "email", "preferred_username"}))
+	}, GenConfig("https://example.com", []string{"openid", "email"}, []string{"name", "email", "preferred_username"}))
 }

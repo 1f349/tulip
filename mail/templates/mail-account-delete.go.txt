@@ -1,0 +1,10 @@
+Hello, {{.Name}}
+
+Your account with {{.ServiceName}} has been disabled and marked for deletion.
+
+Your account will be fully deleted within 48-hours.
+
+You will no longer receive emails from {{.ServiceName}}, unless your email address is used to set up an account.
+
+Regards,
+{{.ServiceName}}

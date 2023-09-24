@@ -82,7 +82,7 @@ func normalLoad(startUp startUpConfig, wd string) {
 		log.Fatal("[Tulip] Failed check:", err)
 	}
 
-	srv := server.NewHttpServer(startUp.Listen, startUp.Domain, startUp.OtpIssuer, startUp.ServiceName, db, key)
+	srv := server.NewHttpServer(startUp.Listen, startUp.BaseUrl, startUp.OtpIssuer, startUp.ServiceName, startUp.Mail, db, key)
 	log.Printf("[Tulip] Starting HTTP server on '%s'\n", srv.Addr)
 	go utils.RunBackgroundHttp("HTTP", srv)
 
@@ -113,7 +113,7 @@ func checkDbHasUser(db *database.DB) error {
 	defer tx.Rollback()
 	if err := tx.HasUser(); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost", database.RoleAdmin, false)
+			_, err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost", database.RoleAdmin, false)
 			if err != nil {
 				return fmt.Errorf("failed to add user: %w", err)
 			}

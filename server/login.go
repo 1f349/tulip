@@ -3,13 +3,17 @@ package server
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
+	"github.com/emersion/go-message/mail"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
+	"log"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
@@ -23,34 +27,80 @@ func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httpr
 	pages.RenderPageTemplate(rw, "login", map[string]any{
 		"ServiceName": h.serviceName,
 		"Redirect":    req.URL.Query().Get("redirect"),
+		"Mismatch":    req.URL.Query().Get("mismatch"),
 	})
 }
 
 func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
 	un := req.FormValue("username")
 	pw := req.FormValue("password")
-	var userSub uuid.UUID
+
+	// flags returned from database call
+	var userInfo *database.User
+	var loginMismatch byte
 	var hasOtp bool
+
 	if h.DbTx(rw, func(tx *database.Tx) error {
-		loginUser, hasOtpRaw, err := tx.CheckLogin(un, pw)
+		loginUser, hasOtpRaw, hasVerifiedEmail, err := tx.CheckLogin(un, pw)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-				http.Redirect(rw, req, "/login?mismatch=1", http.StatusFound)
+				loginMismatch = 1
 				return nil
 			}
 			http.Error(rw, "Internal server error", http.StatusInternalServerError)
 			return err
 		}
-		userSub = loginUser.Sub
+
+		userInfo = loginUser
 		hasOtp = hasOtpRaw
+		if !hasVerifiedEmail {
+			loginMismatch = 2
+		}
 		return nil
 	}) {
 		return
 	}
 
+	if loginMismatch != 0 {
+		originUrl, err := url.Parse(req.FormValue("redirect"))
+		if err != nil {
+			http.Error(rw, "400 Bad Request: Invalid redirect URL", http.StatusBadRequest)
+			return
+		}
+
+		// send verify email
+		if loginMismatch == 2 {
+			// parse email for headers
+			address, err := mail.ParseAddress(userInfo.Email)
+			if err != nil {
+				http.Error(rw, "500 Internal Server Error: Failed to parse user email address", http.StatusInternalServerError)
+				return
+			}
+
+			u := uuid.New()
+			h.mailLinkCache.Set(mailLinkKey{mailLinkVerifyEmail, u}, userInfo.Sub, time.Now().Add(10*time.Minute))
+
+			// try to send email
+			err = h.mailer.SendEmailTemplate("mail-verify", "Verify Email", userInfo.Name, address, map[string]any{
+				"VerifyUrl": h.domain + "/mail/verify/" + u.String(),
+			})
+			if err != nil {
+				log.Println("[Tulip] Login: Failed to send verification email:", err)
+				http.Error(rw, "500 Internal Server Error: Failed to send verification email", http.StatusInternalServerError)
+				return
+			}
+
+			// send email successfully, hope the user actually receives it
+		}
+
+		redirectUrl := PrepareRedirectUrl(fmt.Sprintf("/login?mismatch=%d", loginMismatch), originUrl)
+		http.Redirect(rw, req, redirectUrl.String(), http.StatusFound)
+		return
+	}
+
 	// only continues if the above tx succeeds
 	auth.Data = SessionData{
-		ID:      userSub,
+		ID:      userInfo.Sub,
 		NeedOtp: hasOtp,
 	}
 	if auth.SaveSessionData() != nil {

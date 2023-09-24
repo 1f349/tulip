@@ -8,6 +8,12 @@
     <h1>{{.ServiceName}}</h1>
 </header>
 <main>
+    {{if eq .Mismatch "1"}}
+        <p>Invalid username or password</p>
+    {{end}}
+    {{if eq .Mismatch "2"}}
+        <p>Check your inbox for a verification email</p>
+    {{end}}
     <form method="POST" action="/login">
         <input type="hidden" name="redirect" value="{{.Redirect}}"/>
         <div>
