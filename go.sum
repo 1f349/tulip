@@ -1,6 +1,4 @@
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
-github.com/1f349/cache v0.0.1 h1:Aa2TmfewUDPCLLKmV/gSt0H6Wr2bcKu08zD5m+Im0K4=
-github.com/1f349/cache v0.0.1/go.mod h1:LibAMy13dF0KO1fQA9aEjZPBCB6Y4b5kKYEQJUqc2rQ=
 github.com/1f349/cache v0.0.2 h1:27QD6zPd9xYyvh9V1qqWq+EAt5+N+qvyGWKfnjMrhP8=
 github.com/1f349/cache v0.0.2/go.mod h1:LibAMy13dF0KO1fQA9aEjZPBCB6Y4b5kKYEQJUqc2rQ=
 github.com/1f349/twofactor v1.0.4 h1:kN4EEGFlKRa7fGrxS+FpgwJI+tllES6YzXqCqurk4Uk=
