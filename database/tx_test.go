@@ -26,7 +26,7 @@ func TestTx_ChangeUserPassword(t *testing.T) {
 	query, err := d.db.Query(`SELECT password FROM users WHERE subject = ? AND username = ?`, u.String(), "test")
 	assert.NoError(t, err)
 	assert.True(t, query.Next())
-	var oldPw string
+	var oldPw password.HashString
 	assert.NoError(t, query.Scan(&oldPw))
 	assert.NoError(t, password.CheckPasswordHash(oldPw, "new"))
 	assert.NoError(t, query.Err())

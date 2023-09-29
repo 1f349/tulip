@@ -121,3 +121,28 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 
 	h.SafeRedirect(rw, req)
 }
+
+func (h *HttpServer) LoginResetPasswordPost(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	email := req.PostFormValue("email")
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Name != "" {
+		http.Error(rw, "Invalid email address format", http.StatusBadRequest)
+		return
+	}
+
+	var emailExists bool
+	if h.DbTx(rw, func(tx *database.Tx) (err error) {
+		emailExists, err = tx.UserEmailExists(email)
+		return err
+	}) {
+		return
+	}
+
+	go h.possiblySendPasswordResetEmail(email, emailExists)
+
+	http.Error(rw, "An email will be send to your inbox if an account with that email address is found", http.StatusOK)
+}
+
+func (h *HttpServer) possiblySendPasswordResetEmail(email string, exists bool) {
+	// TODO(Melon): Send reset password email template
+}

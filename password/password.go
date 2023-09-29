@@ -1,12 +1,17 @@
 package password
 
-import "golang.org/x/crypto/bcrypt"
+import (
+	"golang.org/x/crypto/bcrypt"
+)
 
-func HashPassword(password string) (string, error) {
+// HashString is used to represent a string containing a password hash
+type HashString string
+
+func HashPassword(password string) (HashString, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-	return string(bytes), err
+	return HashString(bytes), err
 }
 
-func CheckPasswordHash(hash, password string) error {
+func CheckPasswordHash(hash HashString, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }

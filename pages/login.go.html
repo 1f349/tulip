@@ -26,6 +26,16 @@
         </div>
         <button type="submit">Login</button>
     </form>
+
+    <form method="POST" action="/reset-password">
+        <p>Enter your email address below to receive an email with instructions on how to reset your password.</p>
+        <p>Please note this only works if your email address is already verified.</p>
+        <div>
+            <label for="field_email">Email:</label>
+            <input type="email" name="email" id="field_email" required/>
+        </div>
+        <button type="submit">Send Reset Password Email</button>
+    </form>
 </main>
 </body>
 </html>

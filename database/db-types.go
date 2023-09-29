@@ -15,7 +15,6 @@ type User struct {
 	Sub           uuid.UUID         `json:"sub"`
 	Name          string            `json:"name,omitempty"`
 	Username      string            `json:"username"`
-	Password      string            `json:"password"`
 	Picture       NullStringScanner `json:"picture,omitempty"`
 	Website       NullStringScanner `json:"website,omitempty"`
 	Email         string            `json:"email"`
@@ -102,6 +101,11 @@ func (u *UserPatch) ParseFromForm(v url.Values) (safeErrs []error) {
 		}
 	}
 	return
+}
+
+type ClientInfoDbOutput struct {
+	Sub, Name, Secret, Domain, Owner string
+	SSO, Active                      bool
 }
 
 var _ oauth2.ClientInfo = &ClientInfoDbOutput{}

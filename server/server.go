@@ -170,6 +170,7 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, mailer mail.Ma
 	// mail codes
 	r.GET("/mail/verify/:code", hs.MailVerify)
 	r.GET("/mail/password/:code", hs.MailPassword)
+	r.POST("/mail/password", hs.MailPasswordPost)
 	r.GET("/mail/delete/:code", hs.MailDelete)
 
 	// edit profile pages
