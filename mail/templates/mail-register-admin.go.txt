@@ -1,0 +1,12 @@
+Hello, {{.Name}}
+
+Your email address has been registered with {{.ServiceName}} by an administrator.
+
+Please open this link to verify your email address and register your account {{.Data.RegisterUrl}}
+
+If you did not wish to register for {{.ServiceName}}, then your email has probably been used by mistake.
+
+If the link above is not used to register an account, then no further contact will be made from {{.ServiceName}} and your email address will be deleted from our systems within a 48-hour period.
+
+Regards,
+{{.ServiceName}}
