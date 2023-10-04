@@ -18,11 +18,11 @@
         <input type="hidden" name="redirect" value="{{.Redirect}}"/>
         <div>
             <label for="field_username">User Name:</label>
-            <input type="text" name="username" id="field_username" required/>
+            <input type="text" name="username" id="field_username" {{if gt (len .LoginName) 0}} value="{{.LoginName}}" {{else}} autofocus {{end}} required/>
         </div>
         <div>
             <label for="field_password">Password:</label>
-            <input type="password" name="password" id="field_password" required/>
+            <input type="password" name="password" id="field_password" {{if gt (len .LoginName) 0}} autofocus {{end}} required/>
         </div>
         <button type="submit">Login</button>
     </form>

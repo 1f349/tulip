@@ -16,11 +16,29 @@ import (
 	"time"
 )
 
+// getUserLoginName finds the `login_name` query parameter within the `/authorize` redirect url
+func getUserLoginName(req *http.Request) string {
+	q := req.URL.Query()
+	if !q.Has("redirect") {
+		return ""
+	}
+	originUrl, err := url.ParseRequestURI(q.Get("redirect"))
+	if err != nil {
+		return ""
+	}
+	if originUrl.Path != "/authorize" {
+		return ""
+	}
+	return originUrl.Query().Get("login_name")
+}
+
 func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
 	if !auth.IsGuest() {
 		h.SafeRedirect(rw, req)
 		return
 	}
+
+	loginName := getUserLoginName(req)
 
 	rw.Header().Set("Content-Type", "text/html")
 	rw.WriteHeader(http.StatusOK)
@@ -28,6 +46,7 @@ func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httpr
 		"ServiceName": h.serviceName,
 		"Redirect":    req.URL.Query().Get("redirect"),
 		"Mismatch":    req.URL.Query().Get("mismatch"),
+		"LoginName":   loginName,
 	})
 }
 

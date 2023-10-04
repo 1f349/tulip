@@ -135,7 +135,7 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, mailer mail.Ma
 		if !scope2.ScopesExist(a) {
 			return "", errInvalidScope
 		}
-		return "openid", nil
+		return a, nil
 	})
 
 	r.GET("/.well-known/openid-configuration", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
