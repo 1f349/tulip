@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+<p>Hello, {{.Name}}</p>
+<p>Your email address has been registered with {{.ServiceName}} by an administrator.</p>
+<p>Please open this link to verify your email address and <a href="{{.Data.RegisterUrl}}" target="_blank">register your account</a></p>
+<p>If you did not wish to register for {{.ServiceName}}, then your email has probably been used by mistake.</p>
+<p>If the link above is not used to register an account, then no further contact will be made from {{.ServiceName}} and your email address will be deleted from our systems within a 48-hour period.</p>
+<p>Regards,<br/>{{.ServiceName}}</p>
+</body>
+</html>

@@ -2,7 +2,6 @@ package mail
 
 import (
 	"bytes"
-	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
@@ -47,31 +46,43 @@ func (m *Mail) mailCall(to []string, r io.Reader) error {
 	return smtp.SendMail(m.Server, m.loginInfo(), m.From.String(), to, r)
 }
 
-func (m *Mail) genHeaders(subject string, to []*mail.Address, htmlBody bool) mail.Header {
+func (m *Mail) SendMail(subject string, to []*mail.Address, htmlBody, textBody io.Reader) error {
+	// generate the email in this template
+	buf := new(bytes.Buffer)
+
+	// setup mail headers
 	var h mail.Header
 	h.SetDate(time.Now())
 	h.SetSubject(subject)
 	h.SetAddressList("From", []*mail.Address{m.From.Address})
 	h.SetAddressList("To", to)
+	h.Set("Content-Type", "multipart/alternative")
 
-	if htmlBody {
-		h.Set("Content-Type", "text/html; charset=utf-8")
-	} else {
-		h.Set("Content-Type", "text/plain; charset=utf-8")
-	}
-	return h
-}
+	// setup html and text alternative headers
+	var hHtml, hTxt mail.InlineHeader
+	hHtml.Set("Content-Type", "text/html; charset=utf-8")
+	hTxt.Set("Content-Type", "text/plain; charset=utf-8")
 
-func (m *Mail) SendMail(subject string, to []*mail.Address, htmlBody bool, body io.Reader) error {
-	// generate the email in this template
-	buf := new(bytes.Buffer)
-	h := m.genHeaders(subject, to, htmlBody)
-	entity, err := message.New(h.Header, body)
+	createWriter, err := mail.CreateWriter(buf, h)
 	if err != nil {
 		return err
 	}
-	err = entity.WriteTo(buf)
+	inline, err := createWriter.CreateInline()
 	if err != nil {
+		return err
+	}
+	partHtml, err := inline.CreatePart(hHtml)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(partHtml, htmlBody); err != nil {
+		return err
+	}
+	partTxt, err := inline.CreatePart(hTxt)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(partTxt, textBody); err != nil {
 		return err
 	}
 
