@@ -4,6 +4,7 @@ go 1.21.1
 
 require (
 	github.com/1f349/cache v0.0.2
+	github.com/1f349/overlapfs v0.0.1
 	github.com/1f349/twofactor v1.0.4
 	github.com/1f349/violet v0.0.9
 	github.com/MrMelon54/exit-reload v0.0.1

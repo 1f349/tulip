@@ -9,9 +9,7 @@ import (
 	clientStore "github.com/1f349/tulip/client-store"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/mail"
-	"github.com/1f349/tulip/mail/templates"
 	"github.com/1f349/tulip/openid"
-	"github.com/1f349/tulip/pages"
 	scope2 "github.com/1f349/tulip/scope"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
@@ -80,13 +78,6 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, mailer mail.Ma
 	openIdBytes, err := json.Marshal(openIdConf)
 	if err != nil {
 		log.Fatalln("Failed to generate OpenID configuration:", err)
-	}
-
-	if err := pages.LoadPageTemplates(); err != nil {
-		log.Fatalln("Failed to load page templates:", err)
-	}
-	if err := templates.LoadMailTemplates(); err != nil {
-		log.Fatalln("Failed to load mail templates:", err)
 	}
 
 	oauthManager := manage.NewDefaultManager()

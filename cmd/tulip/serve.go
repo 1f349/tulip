@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/mail/templates"
+	"github.com/1f349/tulip/pages"
 	"github.com/1f349/tulip/server"
 	"github.com/1f349/violet/utils"
 	"github.com/MrMelon54/exit-reload"
@@ -80,6 +82,13 @@ func normalLoad(startUp startUpConfig, wd string) {
 	log.Println("[Tulip] Checking database contains at least one user")
 	if err := checkDbHasUser(db); err != nil {
 		log.Fatal("[Tulip] Failed check:", err)
+	}
+
+	if err = pages.LoadPages(wd); err != nil {
+		log.Fatal("[Tulip] Failed to load page templates:", err)
+	}
+	if err := templates.LoadMailTemplates(wd); err != nil {
+		log.Fatal("[Tulip] Failed to load mail templates:", err)
 	}
 
 	srv := server.NewHttpServer(startUp.Listen, startUp.BaseUrl, startUp.OtpIssuer, startUp.ServiceName, startUp.Mail, db, key)
