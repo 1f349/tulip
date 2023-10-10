@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users
     locale         TEXT    DEFAULT "en-US"     NOT NULL,
     role           INTEGER DEFAULT 0           NOT NULL,
     updated_at     DATETIME,
+    registered     INTEGER DEFAULT 0,
     active         INTEGER DEFAULT 1
 );
 

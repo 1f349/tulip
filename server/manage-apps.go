@@ -3,6 +3,7 @@ package server
 import (
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
+	"github.com/go-oauth2/oauth2/v4"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
@@ -36,10 +37,12 @@ func (h *HttpServer) ManageAppsGet(rw http.ResponseWriter, req *http.Request, _ 
 	}
 
 	m := map[string]any{
-		"ServiceName": h.serviceName,
-		"Apps":        appList,
-		"Offset":      offset,
-		"IsAdmin":     role == database.RoleAdmin,
+		"ServiceName":  h.conf.ServiceName,
+		"Apps":         appList,
+		"Offset":       offset,
+		"IsAdmin":      role == database.RoleAdmin,
+		"NewAppName":   q.Get("NewAppName"),
+		"NewAppSecret": q.Get("NewAppSecret"),
 	}
 	if q.Has("edit") {
 		for _, i := range appList {
@@ -99,10 +102,43 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 			if err != nil {
 				return err
 			}
-			return tx.UpdateClientApp(sub, name, domain, sso, active)
+			return tx.UpdateClientApp(sub, auth.Data.ID, name, domain, sso, active)
 		}) {
 			return
 		}
+	case "secret":
+		var info oauth2.ClientInfo
+		var secret string
+		if h.DbTx(rw, func(tx *database.Tx) error {
+			sub, err := uuid.Parse(req.Form.Get("subject"))
+			if err != nil {
+				return err
+			}
+			info, err = tx.GetClientInfo(sub.String())
+			if err != nil {
+				return err
+			}
+			secret, err = tx.ResetClientAppSecret(sub, auth.Data.ID)
+			return err
+		}) {
+			return
+		}
+
+		appName := "Unknown..."
+		if getName, ok := info.(interface{ GetName() string }); ok {
+			appName = getName.GetName()
+		}
+
+		h.ManageAppsGet(rw, &http.Request{
+			URL: &url.URL{
+				RawQuery: url.Values{
+					"offset":       []string{offset},
+					"NewAppName":   []string{appName},
+					"NewAppSecret": []string{secret},
+				}.Encode(),
+			},
+		}, httprouter.Params{}, auth)
+		return
 	default:
 		http.Error(rw, "400 Bad Request: Invalid action", http.StatusBadRequest)
 		return

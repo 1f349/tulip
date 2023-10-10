@@ -55,7 +55,7 @@ func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcomm
 		return subcommands.ExitFailure
 	}
 
-	var config startUpConfig
+	var config server.Conf
 	err = json.NewDecoder(openConf).Decode(&config)
 	if err != nil {
 		log.Println("[Tulip] Error: invalid config file: ", err)
@@ -71,7 +71,7 @@ func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcomm
 	return subcommands.ExitSuccess
 }
 
-func normalLoad(startUp startUpConfig, wd string) {
+func normalLoad(startUp server.Conf, wd string) {
 	key := genHmacKey()
 
 	db, err := database.Open(filepath.Join(wd, "tulip.db.sqlite"))
@@ -91,7 +91,7 @@ func normalLoad(startUp startUpConfig, wd string) {
 		log.Fatal("[Tulip] Failed to load mail templates:", err)
 	}
 
-	srv := server.NewHttpServer(startUp.Listen, startUp.BaseUrl, startUp.OtpIssuer, startUp.ServiceName, startUp.Mail, db, key)
+	srv := server.NewHttpServer(startUp, db, key)
 	log.Printf("[Tulip] Starting HTTP server on '%s'\n", srv.Addr)
 	go utils.RunBackgroundHttp("HTTP", srv)
 
@@ -122,7 +122,7 @@ func checkDbHasUser(db *database.DB) error {
 	defer tx.Rollback()
 	if err := tx.HasUser(); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			_, err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost", database.RoleAdmin, false)
+			_, err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost", false, database.RoleAdmin, false)
 			if err != nil {
 				return fmt.Errorf("failed to add user: %w", err)
 			}

@@ -37,13 +37,13 @@ func (t *Tx) HasUser() error {
 	return nil
 }
 
-func (t *Tx) InsertUser(name, un, pw, email string, role UserRole, active bool) (uuid.UUID, error) {
+func (t *Tx) InsertUser(name, un, pw, email string, verifyEmail bool, role UserRole, active bool) (uuid.UUID, error) {
 	pwHash, err := password.HashPassword(pw)
 	if err != nil {
 		return uuid.UUID{}, err
 	}
 	u := uuid.New()
-	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email, role, updated_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, u, name, un, pwHash, email, role, updatedAt(), active)
+	_, err = t.tx.Exec(`INSERT INTO users (subject, name, username, password, email, email_verified, role, updated_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, u, name, un, pwHash, email, verifyEmail, role, updatedAt(), active)
 	return u, err
 }
 
@@ -235,18 +235,18 @@ func (t *Tx) InsertClientApp(name, domain string, sso, active bool, owner uuid.U
 	return err
 }
 
-func (t *Tx) UpdateClientApp(subject uuid.UUID, name, domain string, sso, active bool) error {
-	_, err := t.tx.Exec(`UPDATE client_store SET name = ?, domain = ?, sso = ?, active = ? WHERE subject = ?`, name, domain, sso, active, subject.String())
+func (t *Tx) UpdateClientApp(subject, owner uuid.UUID, name, domain string, sso, active bool) error {
+	_, err := t.tx.Exec(`UPDATE client_store SET name = ?, domain = ?, sso = ?, active = ? WHERE subject = ? AND owner = ?`, name, domain, sso, active, subject.String(), owner.String())
 	return err
 }
 
-func (t *Tx) ResetClientAppSecret(subject uuid.UUID, secret string) error {
+func (t *Tx) ResetClientAppSecret(subject, owner uuid.UUID) (string, error) {
 	secret, err := password.GenerateApiSecret(70)
 	if err != nil {
-		return err
+		return "", err
 	}
-	_, err = t.tx.Exec(`UPDATE client_store SET secret = ? WHERE subject = ?`, secret, subject.String())
-	return err
+	_, err = t.tx.Exec(`UPDATE client_store SET secret = ? WHERE subject = ? AND owner = ?`, secret, subject.String(), owner.String())
+	return secret, err
 }
 
 func (t *Tx) GetUserList(offset int) ([]User, error) {

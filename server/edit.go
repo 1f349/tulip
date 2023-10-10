@@ -31,7 +31,7 @@ func (h *HttpServer) EditGet(rw http.ResponseWriter, _ *http.Request, _ httprout
 		return
 	}
 	pages.RenderPageTemplate(rw, "edit", map[string]any{
-		"ServiceName":  h.serviceName,
+		"ServiceName":  h.conf.ServiceName,
 		"User":         user,
 		"Nonce":        lNonce,
 		"FieldPronoun": user.Pronouns.String(),

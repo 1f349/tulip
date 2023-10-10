@@ -2,6 +2,30 @@
 <html lang="en">
 <head>
     <title>{{.ServiceName}}</title>
+    <script>
+        window.addEventListener("load", function () {
+            selectText("app-secret");
+        });
+
+        // Thanks again: https://stackoverflow.com/a/987376
+        function selectText(nodeId) {
+            const node = document.getElementById(nodeId);
+
+            if (document.body.createTextRange) {
+                const range = document.body.createTextRange();
+                range.moveToElementText(node);
+                range.select();
+            } else if (window.getSelection) {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } else {
+                console.warn("Could not select text in node: Unsupported browser.");
+            }
+        }
+    </script>
 </head>
 <body>
 <header>
@@ -11,6 +35,10 @@
     <form method="GET" action="/">
         <button type="submit">Home</button>
     </form>
+
+    {{if .NewAppSecret}}
+        <div>New application secret: <span id="app-secret">{{.NewAppSecret}}</span> for {{.NewAppName}}</div>
+    {{end}}
 
     {{if .Edit}}
         <h2>Edit Client Application</h2>
@@ -31,11 +59,13 @@
             </div>
             {{if .IsAdmin}}
                 <div>
-                    <label for="field_sso">SSO: <input type="checkbox" name="sso" id="field_sso" {{if .Edit.SSO}}checked{{end}}/></label>
+                    <label for="field_sso">SSO: <input type="checkbox" name="sso" id="field_sso"
+                                                       {{if .Edit.SSO}}checked{{end}}/></label>
                 </div>
             {{end}}
             <div>
-                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active" {{if .Edit.Active}}checked{{end}}/></label>
+                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active"
+                                                         {{if .Edit.Active}}checked{{end}}/></label>
             </div>
             <button type="submit">Edit</button>
         </form>
@@ -75,6 +105,12 @@
                                 <input type="hidden" name="edit" value="{{.Sub}}"/>
                                 <button type="submit">Edit</button>
                             </form>
+                            <form method="POST" action="/manage/apps?offset={{$.Offset}}">
+                                <input type="hidden" name="action" value="secret"/>
+                                <input type="hidden" name="offset" value="{{$.Offset}}"/>
+                                <input type="hidden" name="subject" value="{{.Sub}}"/>
+                                <button type="submit">Reset Secret</button>
+                            </form>
                         </td>
                     </tr>
                 {{end}}
@@ -100,7 +136,8 @@
                 </div>
             {{end}}
             <div>
-                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active" checked/></label>
+                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active"
+                                                         checked/></label>
             </div>
             <button type="submit">Create</button>
         </form>

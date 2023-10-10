@@ -37,7 +37,8 @@
                 </select>
             </div>
             <div>
-                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active" checked/></label>
+                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active"
+                                                         checked/></label>
             </div>
             <button type="submit">Edit</button>
         </form>
@@ -98,6 +99,10 @@
                                     <input type="hidden" name="edit" value="{{.Sub}}"/>
                                     <button type="submit">Edit</button>
                                 </form>
+                                <form method="POST" action="/reset-password">
+                                    <input type="hidden" name="email" value="{{.Email}}"/>
+                                    <button type="submit">Send Reset Password Email</button>
+                                </form>
                             {{end}}
                         </td>
                     </tr>
@@ -127,6 +132,8 @@
             </div>
             <div>
                 <label for="field_email">Email:</label>
+                <p>Using an `@{{.Namespace}}` email address will automatically verify as it is owned by this login
+                    service.</p>
                 <input type="text" name="email" id="field_email" required/>
             </div>
             <div>
@@ -137,7 +144,8 @@
                 </select>
             </div>
             <div>
-                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active" checked/></label>
+                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active"
+                                                         checked/></label>
             </div>
             <button type="submit">Create</button>
         </form>

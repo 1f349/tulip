@@ -43,7 +43,7 @@ func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httpr
 	rw.Header().Set("Content-Type", "text/html")
 	rw.WriteHeader(http.StatusOK)
 	pages.RenderPageTemplate(rw, "login", map[string]any{
-		"ServiceName": h.serviceName,
+		"ServiceName": h.conf.ServiceName,
 		"Redirect":    req.URL.Query().Get("redirect"),
 		"Mismatch":    req.URL.Query().Get("mismatch"),
 		"LoginName":   loginName,
@@ -100,8 +100,8 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 			h.mailLinkCache.Set(mailLinkKey{mailLinkVerifyEmail, u}, userInfo.Sub, time.Now().Add(10*time.Minute))
 
 			// try to send email
-			err = h.mailer.SendEmailTemplate("mail-verify", "Verify Email", userInfo.Name, address, map[string]any{
-				"VerifyUrl": h.domain + "/mail/verify/" + u.String(),
+			err = h.conf.Mail.SendEmailTemplate("mail-verify", "Verify Email", userInfo.Name, address, map[string]any{
+				"VerifyUrl": h.conf.BaseUrl + "/mail/verify/" + u.String(),
 			})
 			if err != nil {
 				log.Println("[Tulip] Login: Failed to send verification email:", err)

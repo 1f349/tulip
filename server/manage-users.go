@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -44,11 +45,12 @@ func (h *HttpServer) ManageUsersGet(rw http.ResponseWriter, req *http.Request, _
 	}
 
 	m := map[string]any{
-		"ServiceName":  h.serviceName,
+		"ServiceName":  h.conf.ServiceName,
 		"Users":        userList,
 		"Offset":       offset,
 		"EmailShow":    req.URL.Query().Has("show-email"),
 		"CurrentAdmin": auth.Data.ID,
+		"Namespace":    h.conf.Namespace,
 	}
 	if q.Has("edit") {
 		for _, i := range userList {
@@ -100,18 +102,24 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 
 	switch action {
 	case "create":
-		var userSub uuid.UUID
-		if h.DbTx(rw, func(tx *database.Tx) (err error) {
-			userSub, err = tx.InsertUser(name, username, "", email, newRole, active)
-			return err
-		}) {
-			return
-		}
-
 		// parse email for headers
 		address, err := mail.ParseAddress(email)
 		if err != nil {
 			http.Error(rw, "500 Internal Server Error: Failed to parse user email address", http.StatusInternalServerError)
+			return
+		}
+		n := strings.IndexByte(address.Address, '@')
+		// This case should never happen and fail the above address parsing
+		if n == -1 {
+			return
+		}
+		addrDomain := address.Address[n+1:]
+
+		var userSub uuid.UUID
+		if h.DbTx(rw, func(tx *database.Tx) (err error) {
+			userSub, err = tx.InsertUser(name, username, "", email, addrDomain == h.conf.Namespace, newRole, active)
+			return err
+		}) {
 			return
 		}
 
@@ -119,9 +127,8 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 		h.mailLinkCache.Set(mailLinkKey{mailLinkResetPassword, u}, userSub, time.Now().Add(10*time.Minute))
 		h.mailLinkCache.Set(mailLinkKey{mailLinkDelete, u2}, userSub, time.Now().Add(10*time.Minute))
 
-		err = h.mailer.SendEmailTemplate("mail-register-delete", "Register", name, address, map[string]any{
-			"ResetUrl":  h.domain + "/mail/password/" + u.String(),
-			"DeleteUrl": h.domain + "/mail/delete/" + u2.String(),
+		err = h.conf.Mail.SendEmailTemplate("mail-register-admin", "Register", name, address, map[string]any{
+			"RegisterUrl": h.conf.BaseUrl + "/mail/password/" + u.String(),
 		})
 		if err != nil {
 			log.Println("[Tulip] Login: Failed to send register email:", err)

@@ -8,7 +8,6 @@ import (
 	"github.com/1f349/cache"
 	clientStore "github.com/1f349/tulip/client-store"
 	"github.com/1f349/tulip/database"
-	"github.com/1f349/tulip/mail"
 	"github.com/1f349/tulip/openid"
 	scope2 "github.com/1f349/tulip/scope"
 	"github.com/go-oauth2/oauth2/v4/errors"
@@ -28,15 +27,12 @@ import (
 var errInvalidScope = errors.New("missing required scope")
 
 type HttpServer struct {
-	r           *httprouter.Router
-	oauthSrv    *server.Server
-	oauthMgr    *manage.Manager
-	db          *database.DB
-	domain      string
-	privKey     []byte
-	otpIssuer   string
-	serviceName string
-	mailer      mail.Mail
+	r        *httprouter.Router
+	oauthSrv *server.Server
+	oauthMgr *manage.Manager
+	db       *database.DB
+	conf     Conf
+	privKey  []byte
 
 	// mailLinkCache contains a mapping of verify uuids to user uuids
 	mailLinkCache *cache.Cache[mailLinkKey, uuid.UUID]
@@ -71,10 +67,18 @@ func (h *HttpServer) SafeRedirect(rw http.ResponseWriter, req *http.Request) {
 	http.Redirect(rw, req, parse.String(), http.StatusFound)
 }
 
-func NewHttpServer(listen, domain, otpIssuer, serviceName string, mailer mail.Mail, db *database.DB, privKey []byte) *http.Server {
+func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 	r := httprouter.New()
 
-	openIdConf := openid.GenConfig(domain, []string{"openid", "name", "username", "profile", "email", "birthdate", "age", "zoneinfo", "locale"}, []string{"sub", "name", "preferred_username", "profile", "picture", "website", "email", "email_verified", "gender", "birthdate", "zoneinfo", "locale", "updated_at"})
+	// remove last slash from baseUrl
+	{
+		l := len(conf.BaseUrl)
+		if conf.BaseUrl[l-1] == '/' {
+			conf.BaseUrl = conf.BaseUrl[:l-1]
+		}
+	}
+
+	openIdConf := openid.GenConfig(conf.BaseUrl, []string{"openid", "name", "username", "profile", "email", "birthdate", "age", "zoneinfo", "locale"}, []string{"sub", "name", "preferred_username", "profile", "picture", "website", "email", "email_verified", "gender", "birthdate", "zoneinfo", "locale", "updated_at"})
 	openIdBytes, err := json.Marshal(openIdConf)
 	if err != nil {
 		log.Fatalln("Failed to generate OpenID configuration:", err)
@@ -83,15 +87,12 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, mailer mail.Ma
 	oauthManager := manage.NewDefaultManager()
 	oauthSrv := server.NewServer(server.NewConfig(), oauthManager)
 	hs := &HttpServer{
-		r:           httprouter.New(),
-		oauthSrv:    oauthSrv,
-		oauthMgr:    oauthManager,
-		db:          db,
-		domain:      domain,
-		privKey:     privKey,
-		otpIssuer:   otpIssuer,
-		serviceName: serviceName,
-		mailer:      mailer,
+		r:        httprouter.New(),
+		oauthSrv: oauthSrv,
+		oauthMgr: oauthManager,
+		db:       db,
+		conf:     conf,
+		privKey:  privKey,
 
 		mailLinkCache: cache.New[mailLinkKey, uuid.UUID](),
 	}
@@ -220,10 +221,10 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, mailer mail.Ma
 			m["name"] = userData.Name
 		}
 		if claims["username"] {
-			m["preferred_username"] = userData.Name
+			m["preferred_username"] = userData.Username
 		}
 		if claims["profile"] {
-			m["profile"] = domain + "/user/" + userData.Username
+			m["profile"] = conf.BaseUrl + "/user/" + userData.Username
 			m["picture"] = userData.Picture.String()
 			m["website"] = userData.Website.String()
 		}
@@ -249,7 +250,7 @@ func NewHttpServer(listen, domain, otpIssuer, serviceName string, mailer mail.Ma
 	})
 
 	return &http.Server{
-		Addr:              listen,
+		Addr:              conf.Listen,
 		Handler:           r,
 		ReadTimeout:       time.Minute,
 		ReadHeaderTimeout: time.Minute,

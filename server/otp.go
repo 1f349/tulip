@@ -19,7 +19,7 @@ func (h *HttpServer) LoginOtpGet(rw http.ResponseWriter, req *http.Request, _ ht
 	}
 
 	pages.RenderPageTemplate(rw, "login-otp", map[string]any{
-		"ServiceName": h.serviceName,
+		"ServiceName": h.conf.ServiceName,
 		"Redirect":    req.URL.Query().Get("redirect"),
 	})
 }
@@ -53,7 +53,7 @@ func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub uuid.UUID, 
 			return
 		}
 		if hasOtp {
-			otp, err = tx.GetTwoFactor(sub, h.otpIssuer)
+			otp, err = tx.GetTwoFactor(sub, h.conf.OtpIssuer)
 		}
 		return
 	}) {
@@ -121,7 +121,7 @@ func (h *HttpServer) EditOtpGet(rw http.ResponseWriter, req *http.Request, _ htt
 
 		// generate OTP key
 		var err error
-		otp, err = twofactor.NewTOTP(email, h.otpIssuer, crypto.SHA512, digits)
+		otp, err = twofactor.NewTOTP(email, h.conf.OtpIssuer, crypto.SHA512, digits)
 		if err != nil {
 			http.Error(rw, "500 Internal Server Error: Failed to generate OTP key", http.StatusInternalServerError)
 			return
@@ -150,7 +150,7 @@ func (h *HttpServer) EditOtpGet(rw http.ResponseWriter, req *http.Request, _ htt
 
 	// render page
 	pages.RenderPageTemplate(rw, "edit-otp", map[string]any{
-		"ServiceName": h.serviceName,
+		"ServiceName": h.conf.ServiceName,
 		"OtpQr":       template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(otpQr)),
 		"OtpUrl":      otpUrl,
 	})

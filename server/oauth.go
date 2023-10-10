@@ -95,7 +95,7 @@ func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request
 
 		rw.WriteHeader(http.StatusOK)
 		pages.RenderPageTemplate(rw, "oauth-authorize", map[string]any{
-			"ServiceName":  h.serviceName,
+			"ServiceName":  h.conf.ServiceName,
 			"AppName":      appName,
 			"AppDomain":    appDomain,
 			"User":         user,
