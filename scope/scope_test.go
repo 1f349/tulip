@@ -5,6 +5,22 @@ import (
 	"testing"
 )
 
+func TestScopesExist(t *testing.T) {
+	desc := scopeDescription
+	scopeDescription = map[string]string{
+		"a": "A",
+		"b": "B",
+		"c": "C",
+	}
+
+	assert.True(t, ScopesExist("a b c"))
+	assert.False(t, ScopesExist("a b d"))
+	assert.True(t, ScopesExist("a,b c"))
+	assert.False(t, ScopesExist("a,b d"))
+
+	scopeDescription = desc
+}
+
 func TestFancyScopeList(t *testing.T) {
 	desc := scopeDescription
 	scopeDescription = map[string]string{

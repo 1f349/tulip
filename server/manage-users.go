@@ -84,7 +84,7 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 		return
 	}
 	if role != database.RoleAdmin {
-		http.Error(rw, "400 Bad Request: Only admin users can create SSO client applications", http.StatusBadRequest)
+		http.Error(rw, "400 Bad Request: Only admin users can manage users", http.StatusBadRequest)
 		return
 	}
 

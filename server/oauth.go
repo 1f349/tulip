@@ -93,19 +93,25 @@ func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request
 			return
 		}
 
+		scopeList := form.Get("scope")
+		if !scope.ScopesExist(scopeList) {
+			http.Error(rw, "Invalid scopes", http.StatusBadRequest)
+			return
+		}
+
 		rw.WriteHeader(http.StatusOK)
 		pages.RenderPageTemplate(rw, "oauth-authorize", map[string]any{
 			"ServiceName":  h.conf.ServiceName,
 			"AppName":      appName,
 			"AppDomain":    appDomain,
 			"User":         user,
-			"WantsList":    scope.FancyScopeList(form.Get("scope")),
+			"WantsList":    scope.FancyScopeList(scopeList),
 			"ResponseType": form.Get("response_type"),
 			"ResponseMode": form.Get("response_mode"),
 			"ClientID":     form.Get("client_id"),
 			"RedirectUri":  form.Get("redirect_uri"),
 			"State":        form.Get("state"),
-			"Scope":        form.Get("scope"),
+			"Scope":        scopeList,
 			"Nonce":        form.Get("nonce"),
 			"HasOtp":       hasOtp,
 		})
