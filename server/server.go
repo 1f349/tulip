@@ -168,7 +168,6 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 	// edit profile pages
 	r.GET("/edit", RequireAuthentication(hs.EditGet))
 	r.POST("/edit", RequireAuthentication(hs.EditPost))
-	r.GET("/edit/otp", RequireAuthentication(hs.EditOtpGet))
 	r.POST("/edit/otp", RequireAuthentication(hs.EditOtpPost))
 
 	// management pages
