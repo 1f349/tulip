@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/1f349/tulip/password"
-	"github.com/1f349/twofactor"
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/google/uuid"
 	"time"
@@ -167,23 +166,20 @@ WHERE subject = ?`,
 	return nil
 }
 
-func (t *Tx) SetTwoFactor(sub uuid.UUID, totp *twofactor.Totp) error {
-	u, err := totp.ToBytes()
-	if err != nil {
-		return err
-	}
-	_, err = t.tx.Exec(`INSERT INTO otp(subject, raw) VALUES (?, ?) ON CONFLICT(subject) DO UPDATE SET raw = excluded.raw`, sub.String(), u)
+func (t *Tx) SetTwoFactor(sub uuid.UUID, secret string, digits int) error {
+	_, err := t.tx.Exec(`INSERT INTO otp(subject, secret, digits) VALUES (?, ?, ?) ON CONFLICT(subject) DO UPDATE SET secret = excluded.secret, digits = excluded.digits`, sub.String(), secret, digits)
 	return err
 }
 
-func (t *Tx) GetTwoFactor(sub uuid.UUID, issuer string) (*twofactor.Totp, error) {
-	var u []byte
-	row := t.tx.QueryRow(`SELECT raw FROM otp WHERE subject = ?`, sub.String())
-	err := row.Scan(&u)
+func (t *Tx) GetTwoFactor(sub uuid.UUID) (string, int, error) {
+	var secret string
+	var digits int
+	row := t.tx.QueryRow(`SELECT secret, digits FROM otp WHERE subject = ?`, sub.String())
+	err := row.Scan(&secret, &digits)
 	if err != nil {
-		return nil, err
+		return "", 0, err
 	}
-	return twofactor.TOTPFromBytes(u, issuer)
+	return secret, digits, nil
 }
 
 func (t *Tx) HasTwoFactor(sub uuid.UUID) (bool, error) {

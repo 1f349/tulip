@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS client_store
 CREATE TABLE IF NOT EXISTS otp
 (
     subject TEXT PRIMARY KEY UNIQUE NOT NULL,
-    raw     BLOB                    NOT NULL,
+    secret  TEXT                    NOT NULL,
+    digits  INTEGER                 NOT NULL,
     FOREIGN KEY (subject) REFERENCES users (subject)
 );

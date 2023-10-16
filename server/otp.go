@@ -2,17 +2,17 @@ package server
 
 import (
 	"bytes"
-	"crypto"
 	"encoding/base64"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
-	"github.com/1f349/twofactor"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
+	"github.com/skip2/go-qrcode"
+	"github.com/xlzd/gotp"
 	"html/template"
 	"image/png"
-	"log"
 	"net/http"
+	"time"
 )
 
 func (h *HttpServer) LoginOtpGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
@@ -49,14 +49,15 @@ func (h *HttpServer) LoginOtpPost(rw http.ResponseWriter, req *http.Request, _ h
 
 func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub uuid.UUID, code string) bool {
 	var hasOtp bool
-	var otp *twofactor.Totp
+	var secret string
+	var digits int
 	if h.DbTx(rw, func(tx *database.Tx) (err error) {
 		hasOtp, err = tx.HasTwoFactor(sub)
 		if err != nil {
 			return
 		}
 		if hasOtp {
-			otp, err = tx.GetTwoFactor(sub, h.conf.OtpIssuer)
+			secret, digits, err = tx.GetTwoFactor(sub)
 		}
 		return
 	}) {
@@ -64,14 +65,8 @@ func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub uuid.UUID, 
 	}
 
 	if hasOtp {
-		defer func() {
-			h.DbTx(rw, func(tx *database.Tx) error {
-				return tx.SetTwoFactor(sub, otp)
-			})
-		}()
-
-		err := otp.Validate(code)
-		if err != nil {
+		totp := gotp.NewTOTP(secret, digits, 30, nil)
+		if !verifyTotp(totp, code) {
 			http.Error(rw, "400 Bad Request: Invalid OTP code", http.StatusBadRequest)
 			return true
 		}
@@ -81,7 +76,7 @@ func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub uuid.UUID, 
 }
 
 func (h *HttpServer) EditOtpGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
-	var digits = 0
+	var digits int
 	switch req.URL.Query().Get("digits") {
 	case "6":
 		digits = 6
@@ -94,102 +89,86 @@ func (h *HttpServer) EditOtpGet(rw http.ResponseWriter, req *http.Request, _ htt
 		return
 	}
 
-	var otp *twofactor.Totp
-
-	otpRaw, ok := auth.Session.Get("temp-otp")
-	if ok {
-		if otp, ok = otpRaw.(*twofactor.Totp); !ok {
-			http.Error(rw, "400 Bad Request: invalid session, try clearing your cookies", http.StatusBadRequest)
-			return
-		}
-
-		// check OTP code matches number of digits
-		tempCode, err := otp.OTP()
-		if err != nil || len(tempCode) != digits {
-			otp = nil
-		}
-	}
-
-	// make a new otp handler if needed
-	if otp == nil {
-		// get user email
-		var email string
-		if h.DbTx(rw, func(tx *database.Tx) error {
-			var err error
-			email, err = tx.GetUserEmail(auth.Data.ID)
-			return err
-		}) {
-			return
-		}
-
-		// generate OTP key
+	// get user email
+	var email string
+	if h.DbTx(rw, func(tx *database.Tx) error {
 		var err error
-		otp, err = twofactor.NewTOTP(email, h.conf.OtpIssuer, crypto.SHA512, digits)
-		if err != nil {
-			http.Error(rw, "500 Internal Server Error: Failed to generate OTP key", http.StatusInternalServerError)
-			return
-		}
-
-		// save otp key
-		auth.Session.Set("temp-otp", otp)
-		err = auth.Session.Save()
-		if err != nil {
-			http.Error(rw, "500 Internal Server Error: Failed to save session", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	// get qr and url
-	otpQr, err := otp.QR()
-	if err != nil {
-		http.Error(rw, "500 Internal Server Error: Failed to generate OTP QR code", http.StatusInternalServerError)
+		email, err = tx.GetUserEmail(auth.Data.ID)
+		return err
+	}) {
 		return
 	}
-	decode, err := png.Decode(bytes.NewReader(otpQr))
-	if err != nil {
+
+	secret := gotp.RandomSecret(64)
+	if secret == "" {
+		http.Error(rw, "500 Internal Server Error: failed to generate OTP secret", http.StatusInternalServerError)
 		return
 	}
-	b := decode.Bounds()
-	qrWidth := b.Dx() / 4
-	otpUrl, err := otp.URL()
+	totp := gotp.NewTOTP(secret, digits, 30, nil)
+	otpUri := totp.ProvisioningUri(email, h.conf.OtpIssuer)
+	code, err := qrcode.New(otpUri, qrcode.Medium)
 	if err != nil {
-		http.Error(rw, "500 Internal Server Error: Failed to generate OTP URL", http.StatusInternalServerError)
+		http.Error(rw, "500 Internal Server Error: failed to generate QR code", http.StatusInternalServerError)
+		return
+	}
+	qrImg := code.Image(60 * 4)
+	qrBounds := qrImg.Bounds()
+	qrWidth := qrBounds.Dx()
+
+	qrBuf := new(bytes.Buffer)
+	if png.Encode(qrBuf, qrImg) != nil {
+		http.Error(rw, "500 Internal Server Error: failed to generate PNG image of QR code", http.StatusInternalServerError)
 		return
 	}
 
 	// render page
 	pages.RenderPageTemplate(rw, "edit-otp", map[string]any{
 		"ServiceName": h.conf.ServiceName,
-		"OtpQr":       template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(otpQr)),
+		"OtpQr":       template.URL("data:qrImg/png;base64," + base64.StdEncoding.EncodeToString(qrBuf.Bytes())),
 		"QrWidth":     qrWidth,
-		"OtpUrl":      otpUrl,
+		"OtpUrl":      otpUri,
+		"OtpSecret":   secret,
+		"OtpDigits":   digits,
 	})
 }
 
 func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
-	var otp *twofactor.Totp
-
-	otpRaw, ok := auth.Session.Get("temp-otp")
-	if !ok {
-		http.Error(rw, "400 Bad Request: invalid session, try clearing your cookies", http.StatusBadRequest)
-		return
-	}
-	if otp, ok = otpRaw.(*twofactor.Totp); !ok {
-		http.Error(rw, "400 Bad Request: invalid session, try clearing your cookies", http.StatusBadRequest)
-		return
-	}
-	err := otp.Validate(req.FormValue("code"))
-	if err != nil {
-		http.Error(rw, "400 Bad Request: invalid OTP code: "+err.Error(), http.StatusBadRequest)
-		log.Println()
+	var digits int
+	switch req.FormValue("digits") {
+	case "6":
+		digits = 6
+	case "7":
+		digits = 7
+	case "8":
+		digits = 8
+	default:
+		http.Error(rw, "400 Bad Request: Invalid number of digits for OTP code", http.StatusBadRequest)
 		return
 	}
 
-	if h.DbTx(rw, func(tx *database.Tx) error {
-		return tx.SetTwoFactor(auth.Data.ID, otp)
-	}) {
+	secret := req.FormValue("secret")
+	if !gotp.IsSecretValid(secret) {
+		http.Error(rw, "400 Bad Request: Invalid secret", http.StatusBadRequest)
+		return
+	}
+
+	totp := gotp.NewTOTP(secret, digits, 30, nil)
+
+	if !verifyTotp(totp, req.FormValue("code")) {
+		http.Error(rw, "400 Bad Request: invalid OTP code", http.StatusBadRequest)
 		return
 	}
 
 	http.Redirect(rw, req, "/", http.StatusFound)
+}
+
+func verifyTotp(totp *gotp.TOTP, code string) bool {
+	t := time.Now()
+	if totp.VerifyTime(code, t) {
+		return true
+	}
+	if totp.VerifyTime(code, t.Add(-30*time.Second)) {
+		return true
+	}
+	return totp.VerifyTime(code, t.Add(30*time.Second))
 }

@@ -9,6 +9,8 @@
 </header>
 <main>
     <form method="POST" action="/edit/otp">
+        <input type="hidden" name="secret" value="{{.OtpSecret}}"/>
+        <input type="hidden" name="digits" value="{{.OtpDigits}}"/>
         <p>
             <img src="{{.OtpQr}}" style="width:{{.QrWidth}}px" alt="OTP QR code not loading"/>
         </p>
