@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"html/template"
+	"log"
 	"net/http"
 )
 
@@ -170,7 +171,8 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 	}
 	err := otp.Validate(req.FormValue("code"))
 	if err != nil {
-		http.Error(rw, "400 Bad Request: invalid OTP code", http.StatusBadRequest)
+		http.Error(rw, "400 Bad Request: invalid OTP code: "+err.Error(), http.StatusBadRequest)
+		log.Println()
 		return
 	}
 
