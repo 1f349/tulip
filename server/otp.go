@@ -77,7 +77,7 @@ func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub uuid.UUID, 
 
 func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
 	var digits int
-	switch req.URL.Query().Get("digits") {
+	switch req.FormValue("digits") {
 	case "6":
 		digits = 6
 	case "7":
