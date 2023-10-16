@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"crypto"
 	"encoding/base64"
 	"github.com/1f349/tulip/database"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"html/template"
+	"image/png"
 	"log"
 	"net/http"
 )
@@ -143,6 +145,12 @@ func (h *HttpServer) EditOtpGet(rw http.ResponseWriter, req *http.Request, _ htt
 		http.Error(rw, "500 Internal Server Error: Failed to generate OTP QR code", http.StatusInternalServerError)
 		return
 	}
+	decode, err := png.Decode(bytes.NewReader(otpQr))
+	if err != nil {
+		return
+	}
+	b := decode.Bounds()
+	qrWidth := b.Dx() / 4
 	otpUrl, err := otp.URL()
 	if err != nil {
 		http.Error(rw, "500 Internal Server Error: Failed to generate OTP URL", http.StatusInternalServerError)
@@ -153,6 +161,7 @@ func (h *HttpServer) EditOtpGet(rw http.ResponseWriter, req *http.Request, _ htt
 	pages.RenderPageTemplate(rw, "edit-otp", map[string]any{
 		"ServiceName": h.conf.ServiceName,
 		"OtpQr":       template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(otpQr)),
+		"QrWidth":     qrWidth,
 		"OtpUrl":      otpUrl,
 	})
 }
