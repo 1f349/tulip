@@ -27,10 +27,15 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 	}
 
 	var userWithName *database.User
+	var hasTwoFactor bool
 	if h.DbTx(rw, func(tx *database.Tx) (err error) {
 		userWithName, err = tx.GetUserDisplayName(auth.Data.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get user display name: %w", err)
+		}
+		hasTwoFactor, err = tx.HasTwoFactor(auth.Data.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get user two factor state: %w", err)
 		}
 		return
 	}) {
@@ -41,5 +46,6 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 		"Auth":        auth,
 		"User":        userWithName,
 		"Nonce":       lNonce,
+		"OtpEnabled":  hasTwoFactor,
 	})
 }

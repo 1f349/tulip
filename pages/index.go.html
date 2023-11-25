@@ -15,11 +15,6 @@
         </form>
     </div>
     <div>
-        <form method="GET" action="/edit/username">
-            <button type="submit">Change Username</button>
-        </form>
-    </div>
-    <div>
         <form method="GET" action="/edit/password">
             <button type="submit">Change Password</button>
         </form>
@@ -34,14 +29,23 @@
             <button type="submit">Manage Users</button>
         </form>
     </div>
-    <div>
-        <form method="POST" action="/edit/otp">
-            <label><input type="radio" name="digits" value="6"/> 6 digits</label>
-            <label><input type="radio" name="digits" value="7"/> 7 digits</label>
-            <label><input type="radio" name="digits" value="8"/> 8 digits</label>
-            <button type="submit">Change OTP</button>
-        </form>
-    </div>
+    {{if .OtpEnabled}}
+        <div>
+            <form method="POST" action="/edit/otp">
+                <input type="hidden" name="remove" value="1"/>
+                <button type="submit">Remove OTP</button>
+            </form>
+        </div>
+    {{else}}
+        <div>
+            <form method="POST" action="/edit/otp">
+                <label><input type="radio" name="digits" value="6"/> 6 digits</label>
+                <label><input type="radio" name="digits" value="7"/> 7 digits</label>
+                <label><input type="radio" name="digits" value="8"/> 8 digits</label>
+                <button type="submit">Change OTP</button>
+            </form>
+        </div>
+    {{end}}
     <div>
         <form method="POST" action="/logout">
             <input type="hidden" name="nonce" value="{{.Nonce}}">
