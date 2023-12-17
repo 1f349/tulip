@@ -157,7 +157,7 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 
 	// theme styles
 	r.GET("/theme/style.css", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		http.ServeContent(rw, req, "style.css", time.Now(), bytes.NewReader(theme.ThemeCss))
+		http.ServeContent(rw, req, "style.css", time.Now(), bytes.NewReader(theme.DefaultThemeCss))
 	})
 
 	// login steps

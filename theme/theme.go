@@ -3,4 +3,4 @@ package theme
 import _ "embed"
 
 //go:embed style.css
-var ThemeCss []byte
+var DefaultThemeCss []byte
