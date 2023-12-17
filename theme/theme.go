@@ -2,5 +2,5 @@ package theme
 
 import _ "embed"
 
-//go:embed dark.css
-var DarkThemeCss []byte
+//go:embed style.css
+var ThemeCss []byte

@@ -156,8 +156,8 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 	}))
 
 	// theme styles
-	r.GET("/theme/dark.css", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		http.ServeContent(rw, req, "dark.css", time.Now(), bytes.NewReader(theme.DarkThemeCss))
+	r.GET("/theme/style.css", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		http.ServeContent(rw, req, "style.css", time.Now(), bytes.NewReader(theme.ThemeCss))
 	})
 
 	// login steps

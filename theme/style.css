@@ -1,0 +1,8 @@
+html, body {
+    color-scheme: light dark;
+}
+
+@media screen and (prefers-color-scheme: dark) {
+    background-color: #242424;
+    color: #eeeeee;
+}
