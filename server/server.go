@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/openid"
 	scope2 "github.com/1f349/tulip/scope"
+	"github.com/1f349/tulip/theme"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
 	"github.com/go-oauth2/oauth2/v4/manage"
@@ -152,6 +154,11 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 		}
 		http.Error(rw, "Logout failed", http.StatusInternalServerError)
 	}))
+
+	// theme styles
+	r.GET("/theme/dark.css", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		http.ServeContent(rw, req, "dark.css", time.Now(), bytes.NewReader(theme.DarkThemeCss))
+	})
 
 	// login steps
 	r.GET("/login", OptionalAuthentication(false, hs.LoginGet))
