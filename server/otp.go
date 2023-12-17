@@ -76,6 +76,30 @@ func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub uuid.UUID, 
 }
 
 func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
+	if req.Method == http.MethodPost && req.FormValue("remove") == "1" {
+		if !req.Form.Has("code") {
+			// render page
+			pages.RenderPageTemplate(rw, "remove-otp", map[string]any{
+				"ServiceName": h.conf.ServiceName,
+			})
+			return
+		}
+
+		otpInput := req.Form.Get("code")
+		if h.fetchAndValidateOtp(rw, auth.Data.ID, otpInput) {
+			return
+		}
+
+		if h.DbTx(rw, func(tx *database.Tx) error {
+			return tx.SetTwoFactor(auth.Data.ID, "", 0)
+		}) {
+			return
+		}
+
+		http.Redirect(rw, req, "/", http.StatusFound)
+		return
+	}
+
 	var digits int
 	switch req.FormValue("digits") {
 	case "6":

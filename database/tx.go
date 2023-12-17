@@ -167,6 +167,10 @@ WHERE subject = ?`,
 }
 
 func (t *Tx) SetTwoFactor(sub uuid.UUID, secret string, digits int) error {
+	if secret == "" && digits == 0 {
+		_, err := t.tx.Exec(`DELETE FROM otp WHERE otp.subject = ?`, sub.String())
+		return err
+	}
 	_, err := t.tx.Exec(`INSERT INTO otp(subject, secret, digits) VALUES (?, ?, ?) ON CONFLICT(subject) DO UPDATE SET secret = excluded.secret, digits = excluded.digits`, sub.String(), secret, digits)
 	return err
 }
