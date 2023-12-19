@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/1f349/mjwt"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/mail/templates"
 	"github.com/1f349/tulip/pages"
@@ -72,7 +73,10 @@ func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcomm
 }
 
 func normalLoad(startUp server.Conf, wd string) {
-	key := genHmacKey()
+	signingKey, err := mjwt.NewMJwtSignerFromFileOrCreate(startUp.OtpIssuer, filepath.Join(wd, "tulip.key.pem"), rand.Reader, 4096)
+	if err != nil {
+		log.Fatal("[Tulip] Failed to open signing key file:", err)
+	}
 
 	db, err := database.Open(filepath.Join(wd, "tulip.db.sqlite"))
 	if err != nil {
@@ -91,7 +95,7 @@ func normalLoad(startUp server.Conf, wd string) {
 		log.Fatal("[Tulip] Failed to load mail templates:", err)
 	}
 
-	srv := server.NewHttpServer(startUp, db, key)
+	srv := server.NewHttpServer(startUp, db, signingKey)
 	log.Printf("[Tulip] Starting HTTP server on '%s'\n", srv.Addr)
 	go utils.RunBackgroundHttp("HTTP", srv)
 

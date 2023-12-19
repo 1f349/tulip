@@ -1,6 +1,10 @@
 package server
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"github.com/1f349/tulip/database"
 	"github.com/go-session/session"
@@ -40,7 +44,7 @@ func (u UserAuth) SaveSessionData() error {
 }
 
 func (h *HttpServer) RequireAdminAuthentication(next UserHandler) httprouter.Handle {
-	return RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
+	return h.RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		var role database.UserRole
 		if h.DbTx(rw, func(tx *database.Tx) (err error) {
 			role, err = tx.GetUserRole(auth.Data.ID)
@@ -56,8 +60,8 @@ func (h *HttpServer) RequireAdminAuthentication(next UserHandler) httprouter.Han
 	})
 }
 
-func RequireAuthentication(next UserHandler) httprouter.Handle {
-	return OptionalAuthentication(false, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
+func (h *HttpServer) RequireAuthentication(next UserHandler) httprouter.Handle {
+	return h.OptionalAuthentication(false, func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		if auth.IsGuest() {
 			redirectUrl := PrepareRedirectUrl("/login", req.URL)
 			http.Redirect(rw, req, redirectUrl.String(), http.StatusFound)
@@ -67,7 +71,7 @@ func RequireAuthentication(next UserHandler) httprouter.Handle {
 	})
 }
 
-func OptionalAuthentication(flowPart bool, next UserHandler) httprouter.Handle {
+func (h *HttpServer) OptionalAuthentication(flowPart bool, next UserHandler) httprouter.Handle {
 	return func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		auth, err := internalAuthenticationHandler(rw, req)
 		if err != nil {
@@ -77,6 +81,20 @@ func OptionalAuthentication(flowPart bool, next UserHandler) httprouter.Handle {
 		if n := auth.NextFlowUrl(req.URL); n != nil && !flowPart {
 			http.Redirect(rw, req, n.String(), http.StatusFound)
 			return
+		}
+		if auth.IsGuest() {
+			if loginCookie, err := req.Cookie("login-data"); err == nil {
+				if decryptedBytes, err := base64.RawStdEncoding.DecodeString(loginCookie.Value); err == nil {
+					if decryptedData, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, h.signingKey.PrivateKey(), decryptedBytes, []byte("login-data")); err == nil {
+						if len(decryptedData) == 16 {
+							var u uuid.UUID
+							copy(u[:], decryptedData[:])
+							auth.Data.ID = u
+							auth.Data.NeedOtp = false
+						}
+					}
+				}
+			}
 		}
 		next(rw, req, params, auth)
 	}

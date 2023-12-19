@@ -1,7 +1,11 @@
 package server
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/1f349/tulip/database"
@@ -138,7 +142,28 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 		return
 	}
 
+	if h.setLoginDataCookie(rw, auth.Data.ID) {
+		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 	h.SafeRedirect(rw, req)
+}
+
+func (h *HttpServer) setLoginDataCookie(rw http.ResponseWriter, userId uuid.UUID) bool {
+	encryptedData, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, h.signingKey.PublicKey(), userId[:], []byte("login-data"))
+	if err != nil {
+		return true
+	}
+	encryptedString := base64.RawStdEncoding.EncodeToString(encryptedData)
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "login-data",
+		Value:    encryptedString,
+		Path:     "/",
+		Expires:  time.Now().AddDate(0, 3, 0),
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	return false
 }
 
 func (h *HttpServer) LoginResetPasswordPost(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {

@@ -44,6 +44,7 @@ func (h *HttpServer) LoginOtpPost(rw http.ResponseWriter, req *http.Request, _ h
 		return
 	}
 
+	h.setLoginDataCookie(rw, auth.Data.ID)
 	h.SafeRedirect(rw, req)
 }
 

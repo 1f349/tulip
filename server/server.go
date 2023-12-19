@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/1f349/cache"
+	"github.com/1f349/mjwt"
 	clientStore "github.com/1f349/tulip/client-store"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/openid"
@@ -29,12 +30,12 @@ import (
 var errInvalidScope = errors.New("missing required scope")
 
 type HttpServer struct {
-	r        *httprouter.Router
-	oauthSrv *server.Server
-	oauthMgr *manage.Manager
-	db       *database.DB
-	conf     Conf
-	privKey  []byte
+	r          *httprouter.Router
+	oauthSrv   *server.Server
+	oauthMgr   *manage.Manager
+	db         *database.DB
+	conf       Conf
+	signingKey mjwt.Signer
 
 	// mailLinkCache contains a mapping of verify uuids to user uuids
 	mailLinkCache *cache.Cache[mailLinkKey, uuid.UUID]
@@ -51,25 +52,7 @@ type mailLinkKey struct {
 	data   uuid.UUID
 }
 
-func (h *HttpServer) SafeRedirect(rw http.ResponseWriter, req *http.Request) {
-	redirectUrl := req.FormValue("redirect")
-	if redirectUrl == "" {
-		http.Redirect(rw, req, "/", http.StatusFound)
-		return
-	}
-	parse, err := url.Parse(redirectUrl)
-	if err != nil {
-		http.Error(rw, "Failed to parse redirect url: "+redirectUrl, http.StatusBadRequest)
-		return
-	}
-	if parse.Scheme != "" && parse.Opaque != "" && parse.User != nil && parse.Host != "" {
-		http.Error(rw, "Invalid redirect url: "+redirectUrl, http.StatusBadRequest)
-		return
-	}
-	http.Redirect(rw, req, parse.String(), http.StatusFound)
-}
-
-func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
+func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Server {
 	r := httprouter.New()
 
 	// remove last slash from baseUrl
@@ -89,12 +72,12 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 	oauthManager := manage.NewDefaultManager()
 	oauthSrv := server.NewServer(server.NewConfig(), oauthManager)
 	hs := &HttpServer{
-		r:        httprouter.New(),
-		oauthSrv: oauthSrv,
-		oauthMgr: oauthManager,
-		db:       db,
-		conf:     conf,
-		privKey:  privKey,
+		r:          httprouter.New(),
+		oauthSrv:   oauthSrv,
+		oauthMgr:   oauthManager,
+		db:         db,
+		conf:       conf,
+		signingKey: signingKey,
 
 		mailLinkCache: cache.New[mailLinkKey, uuid.UUID](),
 	}
@@ -136,8 +119,8 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 		rw.WriteHeader(http.StatusOK)
 		_, _ = rw.Write(openIdBytes)
 	})
-	r.GET("/", OptionalAuthentication(false, hs.Home))
-	r.POST("/logout", RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
+	r.GET("/", hs.OptionalAuthentication(false, hs.Home))
+	r.POST("/logout", hs.RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		lNonce, ok := auth.Session.Get("action-nonce")
 		if !ok {
 			http.Error(rw, "Missing nonce", http.StatusInternalServerError)
@@ -149,6 +132,15 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 				http.Error(rw, "Failed to save session", http.StatusInternalServerError)
 				return
 			}
+
+			http.SetCookie(rw, &http.Cookie{
+				Name:     "login-data",
+				Path:     "/",
+				MaxAge:   -1,
+				Secure:   true,
+				SameSite: http.SameSiteStrictMode,
+			})
+
 			http.Redirect(rw, req, "/", http.StatusFound)
 			return
 		}
@@ -161,10 +153,10 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 	})
 
 	// login steps
-	r.GET("/login", OptionalAuthentication(false, hs.LoginGet))
-	r.POST("/login", OptionalAuthentication(false, hs.LoginPost))
-	r.GET("/login/otp", OptionalAuthentication(true, hs.LoginOtpGet))
-	r.POST("/login/otp", OptionalAuthentication(true, hs.LoginOtpPost))
+	r.GET("/login", hs.OptionalAuthentication(false, hs.LoginGet))
+	r.POST("/login", hs.OptionalAuthentication(false, hs.LoginPost))
+	r.GET("/login/otp", hs.OptionalAuthentication(true, hs.LoginOtpGet))
+	r.POST("/login/otp", hs.OptionalAuthentication(true, hs.LoginOtpPost))
 
 	// mail codes
 	r.GET("/mail/verify/:code", hs.MailVerify)
@@ -173,9 +165,9 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 	r.GET("/mail/delete/:code", hs.MailDelete)
 
 	// edit profile pages
-	r.GET("/edit", RequireAuthentication(hs.EditGet))
-	r.POST("/edit", RequireAuthentication(hs.EditPost))
-	r.POST("/edit/otp", RequireAuthentication(hs.EditOtpPost))
+	r.GET("/edit", hs.RequireAuthentication(hs.EditGet))
+	r.POST("/edit", hs.RequireAuthentication(hs.EditPost))
+	r.POST("/edit/otp", hs.RequireAuthentication(hs.EditOtpPost))
 
 	// management pages
 	r.GET("/manage/apps", hs.RequireAdminAuthentication(hs.ManageAppsGet))
@@ -184,8 +176,8 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 	r.POST("/manage/users", hs.RequireAdminAuthentication(hs.ManageUsersPost))
 
 	// oauth pages
-	r.GET("/authorize", RequireAuthentication(hs.authorizeEndpoint))
-	r.POST("/authorize", RequireAuthentication(hs.authorizeEndpoint))
+	r.GET("/authorize", hs.RequireAuthentication(hs.authorizeEndpoint))
+	r.POST("/authorize", hs.RequireAuthentication(hs.authorizeEndpoint))
 	r.POST("/token", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		if err := oauthSrv.HandleTokenRequest(rw, req); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -264,6 +256,24 @@ func NewHttpServer(conf Conf, db *database.DB, privKey []byte) *http.Server {
 		IdleTimeout:       time.Minute,
 		MaxHeaderBytes:    2500,
 	}
+}
+
+func (h *HttpServer) SafeRedirect(rw http.ResponseWriter, req *http.Request) {
+	redirectUrl := req.FormValue("redirect")
+	if redirectUrl == "" {
+		http.Redirect(rw, req, "/", http.StatusFound)
+		return
+	}
+	parse, err := url.Parse(redirectUrl)
+	if err != nil {
+		http.Error(rw, "Failed to parse redirect url: "+redirectUrl, http.StatusBadRequest)
+		return
+	}
+	if parse.Scheme != "" && parse.Opaque != "" && parse.User != nil && parse.Host != "" {
+		http.Error(rw, "Invalid redirect url: "+redirectUrl, http.StatusBadRequest)
+		return
+	}
+	http.Redirect(rw, req, parse.String(), http.StatusFound)
 }
 
 func ParseClaims(claims string) map[string]bool {
