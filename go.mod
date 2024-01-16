@@ -9,9 +9,9 @@ require (
 	github.com/1f349/violet v0.0.12
 	github.com/MrMelon54/exit-reload v0.0.1
 	github.com/MrMelon54/pronouns v1.0.1
-	github.com/emersion/go-message v0.17.0
+	github.com/emersion/go-message v0.18.0
 	github.com/emersion/go-sasl v0.0.0-20231106173351-e73c9f7bad43
-	github.com/emersion/go-smtp v0.19.0
+	github.com/emersion/go-smtp v0.20.1
 	github.com/go-oauth2/oauth2/v4 v4.5.2
 	github.com/go-session/session v3.1.2+incompatible
 	github.com/google/subcommands v1.2.0
@@ -21,7 +21,7 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.8.4
 	github.com/xlzd/gotp v0.1.0
-	golang.org/x/crypto v0.17.0
+	golang.org/x/crypto v0.18.0
 	golang.org/x/text v0.14.0
 )
 
