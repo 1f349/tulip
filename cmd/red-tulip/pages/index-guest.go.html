@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.ServiceName}}</title>
+    <link rel="stylesheet" href="/theme/style.css">
+</head>
+<body>
+<header>
+    <h1>{{.ServiceName}}</h1>
+</header>
+<main>
+    <div>Not logged in</div>
+    <div>
+        <form method="GET" action="/login">
+            <button type="submit">Login</button>
+        </form>
+    </div>
+</main>
+</body>
+</html>

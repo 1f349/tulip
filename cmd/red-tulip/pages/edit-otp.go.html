@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.ServiceName}}</title>
+    <link rel="stylesheet" href="/theme/style.css">
+</head>
+<body>
+<header>
+    <h1>{{.ServiceName}}</h1>
+</header>
+<main>
+    <form method="POST" action="/edit/otp">
+        <input type="hidden" name="secret" value="{{.OtpSecret}}"/>
+        <input type="hidden" name="digits" value="{{.OtpDigits}}"/>
+        <p>
+            <img src="{{.OtpQr}}" style="width:{{.QrWidth}}px" alt="OTP QR code not loading"/>
+        </p>
+        <p style="display:none">Raw OTP string: {{.OtpUrl}}</p>
+        <div>
+            <label for="field_code">OTP Code:</label>
+            <input type="text" name="code" id="field_code" required autofocus pattern="[0-9]{6,8}" title="6/7/8 digit one time passcode"/>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+</main>
+</body>
+</html>

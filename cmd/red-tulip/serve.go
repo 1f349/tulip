@@ -9,10 +9,13 @@ import (
 	"flag"
 	"fmt"
 	"github.com/1f349/mjwt"
+	clientStore "github.com/1f349/tulip/client-store"
+	"github.com/1f349/tulip/cmd/red-tulip/pages"
+	"github.com/1f349/tulip/cmd/red-tulip/server"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/mail/templates"
-	"github.com/1f349/tulip/red-pages"
-	"github.com/1f349/tulip/red-server"
+	"github.com/1f349/tulip/oauth"
+	"github.com/1f349/tulip/openid"
 	"github.com/1f349/violet/utils"
 	"github.com/MrMelon54/exit-reload"
 	"github.com/google/subcommands"
@@ -46,20 +49,14 @@ func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcomm
 		return subcommands.ExitUsageError
 	}
 
-	openConf, err := os.Open(s.configPath)
+	var conf server.Conf
+	err := loadConfig(s.configPath, &conf)
 	if err != nil {
 		if os.IsNotExist(err) {
 			log.Println("[RedTulip] Error: missing config file")
 		} else {
-			log.Println("[RedTulip] Error: open config file: ", err)
+			log.Println("[RedTulip] Error: loading config file: ", err)
 		}
-		return subcommands.ExitFailure
-	}
-
-	var config red_server.Conf
-	err = json.NewDecoder(openConf).Decode(&config)
-	if err != nil {
-		log.Println("[RedTulip] Error: invalid config file: ", err)
 		return subcommands.ExitFailure
 	}
 
@@ -68,17 +65,13 @@ func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcomm
 		log.Fatal("[RedTulip] Failed to get absolute config path")
 	}
 	wd := filepath.Dir(configPathAbs)
-	normalLoad(config, wd)
-	return subcommands.ExitSuccess
-}
 
-func normalLoad(startUp red_server.Conf, wd string) {
-	signingKey, err := mjwt.NewMJwtSignerFromFileOrCreate(startUp.OtpIssuer, filepath.Join(wd, "tulip.key.pem"), rand.Reader, 4096)
+	signer, err := mjwt.NewMJwtSignerFromFileOrCreate(conf.OtpIssuer, filepath.Join(wd, "red-tulip.key.pem"), rand.Reader, 4096)
 	if err != nil {
 		log.Fatal("[Tulip] Failed to open signing key file:", err)
 	}
 
-	db, err := database.Open(filepath.Join(wd, "red-red-tulip.db.sqlite"))
+	db, err := database.Open(filepath.Join(wd, "red-tulip.db.sqlite"))
 	if err != nil {
 		log.Fatal("[RedTulip] Failed to open database:", err)
 	}
@@ -88,34 +81,36 @@ func normalLoad(startUp red_server.Conf, wd string) {
 		log.Fatal("[RedTulip] Failed check:", err)
 	}
 
-	if err = red_pages.LoadPages(wd); err != nil {
+	if err = pages.LoadPages(wd); err != nil {
 		log.Fatal("[RedTulip] Failed to load page templates:", err)
 	}
 	if err := templates.LoadMailTemplates(wd); err != nil {
 		log.Fatal("[RedTulip] Failed to load mail templates:", err)
 	}
 
-	srv := red_server.NewHttpServer(startUp, db, signingKey)
-	log.Printf("[RedTulip] Starting HTTP red-server on '%s'\n", srv.Addr)
+	openIdConf := openid.GenConfig(conf.BaseUrl, []string{"openid", "name", "username", "profile", "email", "birthdate", "age", "zoneinfo", "locale"}, []string{"sub", "name", "preferred_username", "profile", "picture", "website", "email", "email_verified", "gender", "birthdate", "zoneinfo", "locale", "updated_at"})
+	controller := oauth.NewOAuthController(signer, &server.RedAuthSource{DB: db}, clientStore.New(db), openIdConf)
+
+	srv := server.NewHttpServer(conf, db, controller, signer)
+	log.Printf("[RedTulip] Starting HTTP server on '%s'\n", srv.Addr)
 	go utils.RunBackgroundHttp("HTTP", srv)
 
 	exit_reload.ExitReload("RedTulip", func() {}, func() {
-		// stop http red-server
+		// stop http server
 		_ = srv.Close()
 		_ = db.Close()
 	})
+
+	return subcommands.ExitSuccess
 }
 
-func genHmacKey() []byte {
-	a := make([]byte, 32)
-	n, err := rand.Reader.Read(a)
+func loadConfig(configPath string, conf *server.Conf) error {
+	openConf, err := os.Open(configPath)
 	if err != nil {
-		log.Fatal("[RedTulip] Failed to generate HMAC key")
+		return err
 	}
-	if n != 32 {
-		log.Fatal("[RedTulip] Failed to generate HMAC key")
-	}
-	return a
+
+	return json.NewDecoder(openConf).Decode(conf)
 }
 
 func checkDbHasUser(db *database.DB) error {

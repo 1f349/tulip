@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.ServiceName}}</title>
+    <link rel="stylesheet" href="/theme/style.css">
+</head>
+<body>
+<header>
+    <h1>{{.ServiceName}}</h1>
+</header>
+<main>
+    <form method="POST" action="/login/otp" autocomplete="off">
+        <input type="hidden" name="redirect" value="{{.Redirect}}"/>
+        <div>
+            <label for="field_code">OTP Code:</label>
+            <input type="text" name="code" id="field_code" required pattern="[0-9]{6,8}" title="6/7/8 digit one time passcode" autocomplete="off" autofocus aria-autocomplete="none" role="presentation"/>
+        </div>
+        <button type="submit">Login</button>
+    </form>
+</main>
+</body>
+</html>
