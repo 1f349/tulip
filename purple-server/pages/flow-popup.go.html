@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.ServiceName}}</title>
+    <link rel="stylesheet" href="/theme/style.css">
+</head>
+<body>
+<header>
+    <h1>{{.ServiceName}}</h1>
+</header>
+<main>
+    <form method="POST" action="/popup">
+        <input type="hidden" name="origin" value="{{.Origin}}"/>
+        <div>
+            <label for="field_loginname">Login Name:</label>
+            <input type="text" name="loginname" id="field_loginname" required/>
+        </div>
+        <button type="submit">Continue</button>
+    </form>
+</main>
+</body>
+</html>

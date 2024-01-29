@@ -3,7 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
-	"github.com/1f349/tulip/password"
+	"github.com/1f349/tulip/utils"
 	"github.com/go-oauth2/oauth2/v4"
 	"github.com/google/uuid"
 	"time"
@@ -37,7 +37,7 @@ func (t *Tx) HasUser() error {
 }
 
 func (t *Tx) InsertUser(name, un, pw, email string, verifyEmail bool, role UserRole, active bool) (uuid.UUID, error) {
-	pwHash, err := password.HashPassword(pw)
+	pwHash, err := utils.HashPassword(pw)
 	if err != nil {
 		return uuid.UUID{}, err
 	}
@@ -48,14 +48,14 @@ func (t *Tx) InsertUser(name, un, pw, email string, verifyEmail bool, role UserR
 
 func (t *Tx) CheckLogin(un, pw string) (*User, bool, bool, error) {
 	var u User
-	var pwHash password.HashString
+	var pwHash utils.HashString
 	var hasOtp, hasVerify bool
 	row := t.tx.QueryRow(`SELECT subject, password, EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject), email, email_verified FROM users WHERE username = ?`, un)
 	err := row.Scan(&u.Sub, &pwHash, &hasOtp, &u.Email, &hasVerify)
 	if err != nil {
 		return nil, false, false, err
 	}
-	err = password.CheckPasswordHash(pwHash, pw)
+	err = utils.CheckPasswordHash(pwHash, pw)
 	return &u, hasOtp, hasVerify, err
 }
 
@@ -94,7 +94,7 @@ func (t *Tx) ChangeUserPassword(sub uuid.UUID, pwOld, pwNew string) error {
 	if err != nil {
 		return err
 	}
-	var pwHash password.HashString
+	var pwHash utils.HashString
 	if q.Next() {
 		err = q.Scan(&pwHash)
 		if err != nil {
@@ -109,11 +109,11 @@ func (t *Tx) ChangeUserPassword(sub uuid.UUID, pwOld, pwNew string) error {
 	if err := q.Close(); err != nil {
 		return err
 	}
-	err = password.CheckPasswordHash(pwHash, pwOld)
+	err = utils.CheckPasswordHash(pwHash, pwOld)
 	if err != nil {
 		return err
 	}
-	pwNewHash, err := password.HashPassword(pwNew)
+	pwNewHash, err := utils.HashPassword(pwNew)
 	if err != nil {
 		return err
 	}
@@ -227,7 +227,7 @@ func (t *Tx) GetAppList(offset int) ([]ClientInfoDbOutput, error) {
 
 func (t *Tx) InsertClientApp(name, domain string, sso, active bool, owner uuid.UUID) error {
 	u := uuid.New()
-	secret, err := password.GenerateApiSecret(70)
+	secret, err := utils.GenerateApiSecret(70)
 	if err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (t *Tx) UpdateClientApp(subject, owner uuid.UUID, name, domain string, sso,
 }
 
 func (t *Tx) ResetClientAppSecret(subject, owner uuid.UUID) (string, error) {
-	secret, err := password.GenerateApiSecret(70)
+	secret, err := utils.GenerateApiSecret(70)
 	if err != nil {
 		return "", err
 	}
@@ -277,7 +277,7 @@ func (t *Tx) VerifyUserEmail(sub uuid.UUID) error {
 }
 
 func (t *Tx) UserResetPassword(sub uuid.UUID, pw string) error {
-	hashPassword, err := password.HashPassword(pw)
+	hashPassword, err := utils.HashPassword(pw)
 	if err != nil {
 		return err
 	}

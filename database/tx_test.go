@@ -1,7 +1,7 @@
 package database
 
 import (
-	"github.com/1f349/tulip/password"
+	"github.com/1f349/tulip/utils"
 	"github.com/MrMelon54/pronouns"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -12,7 +12,7 @@ import (
 
 func TestTx_ChangeUserPassword(t *testing.T) {
 	u := uuid.New()
-	pw, err := password.HashPassword("test")
+	pw, err := utils.HashPassword("test")
 	assert.NoError(t, err)
 	d, err := Open("file::memory:")
 	assert.NoError(t, err)
@@ -26,16 +26,16 @@ func TestTx_ChangeUserPassword(t *testing.T) {
 	query, err := d.db.Query(`SELECT password FROM users WHERE subject = ? AND username = ?`, u.String(), "test")
 	assert.NoError(t, err)
 	assert.True(t, query.Next())
-	var oldPw password.HashString
+	var oldPw utils.HashString
 	assert.NoError(t, query.Scan(&oldPw))
-	assert.NoError(t, password.CheckPasswordHash(oldPw, "new"))
+	assert.NoError(t, utils.CheckPasswordHash(oldPw, "new"))
 	assert.NoError(t, query.Err())
 	assert.NoError(t, query.Close())
 }
 
 func TestTx_ModifyUser(t *testing.T) {
 	u := uuid.New()
-	pw, err := password.HashPassword("test")
+	pw, err := utils.HashPassword("test")
 	assert.NoError(t, err)
 	d, err := Open("file::memory:")
 	assert.NoError(t, err)

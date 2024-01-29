@@ -11,5 +11,5 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
     - uses: actions/checkout@v3
-    - run: go build ./cmd/tulip/
+    - run: go build ./cmd/red-tulip/
     - run: go test ./...

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Test Client</title>
+  <script>
+      let currentLoginPopup = null;
+      let currentTokens = null;
+      const ssoService = "http://localhost:9090";
+
+      function updateTokenInfo(data) {
+          currentTokens = data.tokens;
+          data.tokens = {
+              access: "*****",
+              refresh: "*****",
+          }
+          document.getElementById("someTextArea").textContent = JSON.stringify(data, null, 2);
+          let perms = document.getElementById("somePerms");
+          while (perms.childNodes.length > 0) {
+              perms.childNodes.item(0).remove();
+          }
+          document.getElementById("tokenValues").textContent = JSON.stringify(currentTokens, null, 2);
+
+          let jwt = parseJwt(currentTokens.access);
+          if (jwt.per != null) {
+              jwt.per.forEach(function (x) {
+                  let a = document.createElement("li");
+                  a.textContent = x;
+                  perms.appendChild(a);
+              });
+          }
+      }
+
+      window.addEventListener("message", function (event) {
+          if (event.origin !== ssoService) return;
+          if (isObject(event.data)) {
+              updateTokenInfo(event.data);
+
+              if (currentLoginPopup) currentLoginPopup.close();
+              return;
+          }
+          alert("Failed to log user in: the login data was probably corrupted");
+      });
+
+      function parseJwt(token) {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
+              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+          return JSON.parse(jsonPayload);
+      }
+
+      function isObject(obj) {
+          return obj != null && obj.constructor.name === "Object"
+      }
+
+      function popupCenterScreen(url, title, w, h, focus) {
+          const top = (screen.availHeight - h) / 4, left = (screen.availWidth - w) / 2;
+          const popup = openWindow(url, title, `scrollbars=yes,width=${w},height=${h},top=${top},left=${left}`);
+          if (focus === true && window.focus) popup.focus();
+          return popup;
+      }
+
+      function openWindow(url, winnm, options) {
+          var wTop = firstAvailableValue([window.screen.availTop, window.screenY, window.screenTop, 0]);
+          var wLeft = firstAvailableValue([window.screen.availLeft, window.screenX, window.screenLeft, 0]);
+          var top = 0, left = 0;
+          var result;
+          if ((result = /top=(\d+)/g.exec(options))) top = parseInt(result[1]);
+          if ((result = /left=(\d+)/g.exec(options))) left = parseInt(result[1]);
+          if (options) {
+              options = options.replace("top=" + top, "top=" + (parseInt(top) + wTop));
+              options = options.replace("left=" + left, "left=" + (parseInt(left) + wLeft));
+              w = window.open(url, winnm, options);
+          } else w = window.open(url, winnm);
+          return w;
+      }
+
+      function firstAvailableValue(arr) {
+          for (var i = 0; i < arr.length; i++)
+              if (typeof arr[i] != 'undefined')
+                  return arr[i];
+      }
+
+      function doThisThing() {
+          if (currentLoginPopup) currentLoginPopup.close();
+          currentLoginPopup = popupCenterScreen(ssoService + '/popup?origin=' + encodeURIComponent(location.origin), 'Login with Lavender', 500, 500, false);
+      }
+
+      async function refreshAllTokens() {
+          let req = await fetch(ssoService + '/refresh', {
+              method: 'POST',
+              mode: 'cors',
+              cache: 'no-cache',
+              credentials: 'include',
+              headers: {
+                  "Content-Type": "application/json",
+              },
+              body: JSON.stringify({"token": currentTokens.refresh}),
+          });
+          let reqJson = await req.json();
+          updateTokenInfo(reqJson);
+      }
+  </script>
+  <style>
+      #someTextArea {
+          width: 400px;
+          height: 400px;
+      }
+
+      #tokenValues {
+          width: 400px;
+          height: 400px;
+      }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Test Client</h1>
+</header>
+<main>
+  <div>
+    <button onclick="doThisThing();">Login</button>
+    <button onclick="refreshAllTokens();">Refresh</button>
+  </div>
+  <div style="display:flex; gap: 2em;">
+    <div>
+      <div>
+        <label for="someTextArea"></label><textarea id="someTextArea"></textarea>
+      </div>
+      <div>
+        <label for="tokenValues"></label><textarea id="tokenValues"></textarea>
+      </div>
+    </div>
+    <div>
+      <p>Permissions:</p>
+      <ul id="somePerms"></ul>
+    </div>
+  </div>
+</main>
+</body>
+</html>

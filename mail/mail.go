@@ -13,7 +13,7 @@ import (
 type Mail struct {
 	Name     string      `json:"name"`
 	Tls      bool        `json:"tls"`
-	Server   string      `json:"server"`
+	Server   string      `json:"red-server"`
 	From     FromAddress `json:"from"`
 	Username string      `json:"username"`
 	Password string      `json:"password"`
