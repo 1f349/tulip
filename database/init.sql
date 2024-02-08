@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS client_store
     secret  TEXT UNIQUE             NOT NULL,
     domain  TEXT                    NOT NULL,
     owner   TEXT                    NOT NULL,
+    public  INTEGER,
     sso     INTEGER,
     active  INTEGER DEFAULT 1,
     FOREIGN KEY (owner) REFERENCES users (subject)

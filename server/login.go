@@ -150,13 +150,13 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 }
 
 func (h *HttpServer) setLoginDataCookie(rw http.ResponseWriter, userId uuid.UUID) bool {
-	encryptedData, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, h.signingKey.PublicKey(), userId[:], []byte("login-data"))
+	encryptedData, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, h.signingKey.PublicKey(), userId[:], []byte("tulip-login-data"))
 	if err != nil {
 		return true
 	}
 	encryptedString := base64.RawStdEncoding.EncodeToString(encryptedData)
 	http.SetCookie(rw, &http.Cookie{
-		Name:     "login-data",
+		Name:     "tulip-login-data",
 		Value:    encryptedString,
 		Path:     "/",
 		Expires:  time.Now().AddDate(0, 3, 0),

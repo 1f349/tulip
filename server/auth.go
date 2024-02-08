@@ -83,9 +83,9 @@ func (h *HttpServer) OptionalAuthentication(flowPart bool, next UserHandler) htt
 			return
 		}
 		if auth.IsGuest() {
-			if loginCookie, err := req.Cookie("login-data"); err == nil {
+			if loginCookie, err := req.Cookie("tulip-login-data"); err == nil {
 				if decryptedBytes, err := base64.RawStdEncoding.DecodeString(loginCookie.Value); err == nil {
-					if decryptedData, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, h.signingKey.PrivateKey(), decryptedBytes, []byte("login-data")); err == nil {
+					if decryptedData, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, h.signingKey.PrivateKey(), decryptedBytes, []byte("tulip-login-data")); err == nil {
 						if len(decryptedData) == 16 {
 							var u uuid.UUID
 							copy(u[:], decryptedData[:])

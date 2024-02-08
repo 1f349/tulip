@@ -25,11 +25,13 @@
             <button type="submit">Manage Applications</button>
         </form>
     </div>
-    <div>
-        <form method="GET" action="/manage/users">
-            <button type="submit">Manage Users</button>
-        </form>
-    </div>
+    {{if .IsAdmin}}
+        <div>
+            <form method="GET" action="/manage/users">
+                <button type="submit">Manage Users</button>
+            </form>
+        </div>
+    {{end}}
     {{if .OtpEnabled}}
         <div>
             <form method="POST" action="/edit/otp">

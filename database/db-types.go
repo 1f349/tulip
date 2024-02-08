@@ -105,7 +105,7 @@ func (u *UserPatch) ParseFromForm(v url.Values) (safeErrs []error) {
 
 type ClientInfoDbOutput struct {
 	Sub, Name, Secret, Domain, Owner string
-	SSO, Active                      bool
+	Public, SSO, Active              bool
 }
 
 var _ oauth2.ClientInfo = &ClientInfoDbOutput{}
@@ -113,7 +113,7 @@ var _ oauth2.ClientInfo = &ClientInfoDbOutput{}
 func (c *ClientInfoDbOutput) GetID() string     { return c.Sub }
 func (c *ClientInfoDbOutput) GetSecret() string { return c.Secret }
 func (c *ClientInfoDbOutput) GetDomain() string { return c.Domain }
-func (c *ClientInfoDbOutput) IsPublic() bool    { return false }
+func (c *ClientInfoDbOutput) IsPublic() bool    { return c.Public }
 func (c *ClientInfoDbOutput) GetUserID() string { return c.Owner }
 
 // GetName is an extra field for the oauth handler to display the application

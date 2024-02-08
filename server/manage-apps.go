@@ -30,7 +30,7 @@ func (h *HttpServer) ManageAppsGet(rw http.ResponseWriter, req *http.Request, _ 
 		if err != nil {
 			return
 		}
-		appList, err = tx.GetAppList(offset)
+		appList, err = tx.GetAppList(auth.Data.ID, role == database.RoleAdmin, offset)
 		return
 	}) {
 		return
@@ -72,6 +72,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 	action := req.Form.Get("action")
 	name := req.Form.Get("name")
 	domain := req.Form.Get("domain")
+	public := req.Form.Has("public")
 	sso := req.Form.Has("sso")
 	active := req.Form.Has("active")
 
@@ -92,7 +93,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 	switch action {
 	case "create":
 		if h.DbTx(rw, func(tx *database.Tx) error {
-			return tx.InsertClientApp(name, domain, sso, active, auth.Data.ID)
+			return tx.InsertClientApp(name, domain, public, sso, active, auth.Data.ID)
 		}) {
 			return
 		}
@@ -102,7 +103,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 			if err != nil {
 				return err
 			}
-			return tx.UpdateClientApp(sub, auth.Data.ID, name, domain, sso, active)
+			return tx.UpdateClientApp(sub, auth.Data.ID, name, domain, public, sso, active)
 		}) {
 			return
 		}

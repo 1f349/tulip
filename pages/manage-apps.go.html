@@ -58,15 +58,16 @@
                 <label for="field_domain">Domain:</label>
                 <input type="text" name="domain" id="field_domain" value="{{.Edit.Domain}}" required/>
             </div>
+            <div>
+                <label for="field_public">Public: <input type="checkbox" name="public" id="field_public" {{if .Edit.Public}}checked{{end}}/></label>
+            </div>
             {{if .IsAdmin}}
                 <div>
-                    <label for="field_sso">SSO: <input type="checkbox" name="sso" id="field_sso"
-                                                       {{if .Edit.SSO}}checked{{end}}/></label>
+                    <label for="field_sso">SSO: <input type="checkbox" name="sso" id="field_sso" {{if .Edit.SSO}}checked{{end}}/></label>
                 </div>
             {{end}}
             <div>
-                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active"
-                                                         {{if .Edit.Active}}checked{{end}}/></label>
+                <label for="field_active">Active: <input type="checkbox" name="active" id="field_active" {{if .Edit.Active}}checked{{end}}/></label>
             </div>
             <button type="submit">Edit</button>
         </form>
@@ -85,6 +86,7 @@
                     <th>ID</th>
                     <th>Name</th>
                     <th>Domain</th>
+                    <th>Public</th>
                     <th>SSO</th>
                     <th>Active</th>
                     <th>Owner</th>
@@ -97,6 +99,7 @@
                         <td>{{.Sub}}</td>
                         <td>{{.Name}}</td>
                         <td>{{.Domain}}</td>
+                        <td>{{.Public}}</td>
                         <td>{{.SSO}}</td>
                         <td>{{.Active}}</td>
                         <td>{{.Owner}}</td>
@@ -130,6 +133,9 @@
             <div>
                 <label for="field_domain">Domain:</label>
                 <input type="text" name="domain" id="field_domain" required/>
+            </div>
+            <div>
+                <label for="field_public">Public: <input type="checkbox" name="public" id="field_public"/></label>
             </div>
             {{if .IsAdmin}}
                 <div>
