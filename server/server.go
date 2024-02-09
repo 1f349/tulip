@@ -19,7 +19,6 @@ import (
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/go-session/session"
-	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"log"
 	"net/http"
@@ -39,7 +38,7 @@ type HttpServer struct {
 	signingKey mjwt.Signer
 
 	// mailLinkCache contains a mapping of verify uuids to user uuids
-	mailLinkCache *cache.Cache[mailLinkKey, uuid.UUID]
+	mailLinkCache *cache.Cache[mailLinkKey, string]
 }
 
 const (
@@ -50,7 +49,7 @@ const (
 
 type mailLinkKey struct {
 	action byte
-	data   uuid.UUID
+	data   string
 }
 
 func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Server {
@@ -82,7 +81,7 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 		conf:       conf,
 		signingKey: signingKey,
 
-		mailLinkCache: cache.New[mailLinkKey, uuid.UUID](),
+		mailLinkCache: cache.New[mailLinkKey, string](),
 	}
 
 	oauthManager.SetAuthorizeCodeTokenCfg(manage.DefaultAuthorizeCodeTokenCfg)
@@ -124,18 +123,12 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 	})
 	r.GET("/", hs.OptionalAuthentication(false, hs.Home))
 	r.POST("/logout", hs.RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		lNonce, ok := auth.Session.Get("action-nonce")
-		if !ok {
-			http.Error(rw, "Missing nonce", http.StatusInternalServerError)
+		cookie, err := req.Cookie("tulip-nonce")
+		if err != nil {
+			http.Error(rw, "Missing nonce", http.StatusBadRequest)
 			return
 		}
-		if subtle.ConstantTimeCompare([]byte(lNonce.(string)), []byte(req.PostFormValue("nonce"))) == 1 {
-			auth.Session.Delete("session-data")
-			if auth.Session.Save() != nil {
-				http.Error(rw, "Failed to save session", http.StatusInternalServerError)
-				return
-			}
-
+		if subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(req.PostFormValue("nonce"))) == 1 {
 			http.SetCookie(rw, &http.Cookie{
 				Name:     "tulip-login-data",
 				Path:     "/",
@@ -193,11 +186,6 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 			return
 		}
 		userId := token.GetUserID()
-		userUuid, err := uuid.Parse(userId)
-		if err != nil {
-			http.Error(rw, "Invalid User ID", http.StatusBadRequest)
-			return
-		}
 
 		fmt.Printf("Using token for user: %s by app: %s with scope: '%s'\n", userId, token.GetClientID(), token.GetScope())
 		claims := ParseClaims(token.GetScope())
@@ -209,7 +197,7 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 		var userData *database.User
 
 		if hs.DbTx(rw, func(tx *database.Tx) (err error) {
-			userData, err = tx.GetUser(userUuid)
+			userData, err = tx.GetUser(userId)
 			return err
 		}) {
 			return

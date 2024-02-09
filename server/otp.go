@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
-	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/skip2/go-qrcode"
 	"github.com/xlzd/gotp"
@@ -16,7 +15,7 @@ import (
 )
 
 func (h *HttpServer) LoginOtpGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
-	if !auth.Data.NeedOtp {
+	if !auth.NeedOtp {
 		h.SafeRedirect(rw, req)
 		return
 	}
@@ -28,27 +27,23 @@ func (h *HttpServer) LoginOtpGet(rw http.ResponseWriter, req *http.Request, _ ht
 }
 
 func (h *HttpServer) LoginOtpPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
-	if !auth.Data.NeedOtp {
+	if !auth.NeedOtp {
 		http.Redirect(rw, req, "/", http.StatusFound)
 		return
 	}
 
 	otpInput := req.FormValue("code")
-	if h.fetchAndValidateOtp(rw, auth.Data.ID, otpInput) {
+	if h.fetchAndValidateOtp(rw, auth.ID, otpInput) {
 		return
 	}
 
-	auth.Data.NeedOtp = false
-	if auth.SaveSessionData() != nil {
-		http.Error(rw, "500 Internal Server Error: Failed to safe session", http.StatusInternalServerError)
-		return
-	}
+	auth.NeedOtp = false
 
-	h.setLoginDataCookie(rw, auth.Data.ID)
+	h.setLoginDataCookie(rw, auth)
 	h.SafeRedirect(rw, req)
 }
 
-func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub uuid.UUID, code string) bool {
+func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub, code string) bool {
 	var hasOtp bool
 	var secret string
 	var digits int
@@ -87,12 +82,12 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 		}
 
 		otpInput := req.Form.Get("code")
-		if h.fetchAndValidateOtp(rw, auth.Data.ID, otpInput) {
+		if h.fetchAndValidateOtp(rw, auth.ID, otpInput) {
 			return
 		}
 
 		if h.DbTx(rw, func(tx *database.Tx) error {
-			return tx.SetTwoFactor(auth.Data.ID, "", 0)
+			return tx.SetTwoFactor(auth.ID, "", 0)
 		}) {
 			return
 		}
@@ -125,7 +120,7 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 		var email string
 		if h.DbTx(rw, func(tx *database.Tx) error {
 			var err error
-			email, err = tx.GetUserEmail(auth.Data.ID)
+			email, err = tx.GetUserEmail(auth.ID)
 			return err
 		}) {
 			return
@@ -173,7 +168,7 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 	}
 
 	if h.DbTx(rw, func(tx *database.Tx) error {
-		return tx.SetTwoFactor(auth.Data.ID, secret, digits)
+		return tx.SetTwoFactor(auth.ID, secret, digits)
 	}) {
 		return
 	}

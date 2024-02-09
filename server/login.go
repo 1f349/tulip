@@ -1,16 +1,15 @@
 package server
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/1f349/mjwt/auth"
+	"github.com/1f349/mjwt/claims"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
 	"github.com/emersion/go-message/mail"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
@@ -100,12 +99,12 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 				return
 			}
 
-			u := uuid.New()
+			u := uuid.NewString()
 			h.mailLinkCache.Set(mailLinkKey{mailLinkVerifyEmail, u}, userInfo.Sub, time.Now().Add(10*time.Minute))
 
 			// try to send email
 			err = h.conf.Mail.SendEmailTemplate("mail-verify", "Verify Email", userInfo.Name, address, map[string]any{
-				"VerifyUrl": h.conf.BaseUrl + "/mail/verify/" + u.String(),
+				"VerifyUrl": h.conf.BaseUrl + "/mail/verify/" + u,
 			})
 			if err != nil {
 				log.Println("[Tulip] Login: Failed to send verification email:", err)
@@ -122,13 +121,9 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 	}
 
 	// only continues if the above tx succeeds
-	auth.Data = SessionData{
+	auth = UserAuth{
 		ID:      userInfo.Sub,
 		NeedOtp: hasOtp,
-	}
-	if auth.SaveSessionData() != nil {
-		http.Error(rw, "Failed to save session", http.StatusInternalServerError)
-		return
 	}
 
 	if hasOtp {
@@ -142,31 +137,36 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 		return
 	}
 
-	if h.setLoginDataCookie(rw, auth.Data.ID) {
-		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+	if h.setLoginDataCookie(rw, auth) {
 		return
 	}
 	h.SafeRedirect(rw, req)
 }
 
-func (h *HttpServer) setLoginDataCookie(rw http.ResponseWriter, userId uuid.UUID) bool {
-	encryptedData, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, h.signingKey.PublicKey(), userId[:], []byte("tulip-login-data"))
+var oneYear = 365 * 24 * time.Hour
+
+func (h *HttpServer) setLoginDataCookie(rw http.ResponseWriter, authData UserAuth) bool {
+	ps := claims.NewPermStorage()
+	if authData.NeedOtp {
+		ps.Set("needs-otp")
+	}
+	gen, err := h.signingKey.GenerateJwt(authData.ID, uuid.NewString(), jwt.ClaimStrings{h.conf.BaseUrl}, oneYear, auth.AccessTokenClaims{Perms: ps})
 	if err != nil {
+		http.Error(rw, "Failed to generate cookie token", http.StatusInternalServerError)
 		return true
 	}
-	encryptedString := base64.RawStdEncoding.EncodeToString(encryptedData)
 	http.SetCookie(rw, &http.Cookie{
 		Name:     "tulip-login-data",
-		Value:    encryptedString,
+		Value:    gen,
 		Path:     "/",
-		Expires:  time.Now().AddDate(0, 3, 0),
+		Expires:  time.Now().AddDate(1, 0, 0),
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 	})
 	return false
 }
 
-func (h *HttpServer) LoginResetPasswordPost(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (h *HttpServer) LoginResetPasswordPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	email := req.PostFormValue("email")
 	address, err := mail.ParseAddress(email)
 	if err != nil || address.Name != "" {

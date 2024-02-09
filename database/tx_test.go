@@ -20,7 +20,7 @@ func TestTx_ChangeUserPassword(t *testing.T) {
 	assert.NoError(t, err)
 	tx, err := d.Begin()
 	assert.NoError(t, err)
-	err = tx.ChangeUserPassword(u, "test", "new")
+	err = tx.ChangeUserPassword(u.String(), "test", "new")
 	assert.NoError(t, err)
 	assert.NoError(t, tx.Commit())
 	query, err := d.db.Query(`SELECT password FROM users WHERE subject = ? AND username = ?`, u.String(), "test")
@@ -43,7 +43,7 @@ func TestTx_ModifyUser(t *testing.T) {
 	assert.NoError(t, err)
 	tx, err := d.Begin()
 	assert.NoError(t, err)
-	assert.NoError(t, tx.ModifyUser(u, &UserPatch{
+	assert.NoError(t, tx.ModifyUser(u.String(), &UserPatch{
 		Name:     "example",
 		Pronouns: pronouns.TheyThem,
 		ZoneInfo: time.UTC,

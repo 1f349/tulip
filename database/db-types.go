@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"github.com/MrMelon54/pronouns"
 	"github.com/go-oauth2/oauth2/v4"
-	"github.com/google/uuid"
 	"golang.org/x/text/language"
 	"net/url"
 	"time"
 )
 
 type User struct {
-	Sub           uuid.UUID         `json:"sub"`
+	Sub           string            `json:"sub"`
 	Name          string            `json:"name,omitempty"`
 	Username      string            `json:"username"`
 	Picture       NullStringScanner `json:"picture,omitempty"`

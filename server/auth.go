@@ -1,14 +1,9 @@
 package server
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
-	"encoding/base64"
-	"fmt"
+	"github.com/1f349/mjwt"
+	"github.com/1f349/mjwt/auth"
 	"github.com/1f349/tulip/database"
-	"github.com/go-session/session"
-	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"net/url"
@@ -18,36 +13,26 @@ import (
 type UserHandler func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth)
 
 type UserAuth struct {
-	Session session.Store
-	Data    SessionData
-}
-
-type SessionData struct {
-	ID      uuid.UUID
+	ID      string
 	NeedOtp bool
 }
 
 func (u UserAuth) NextFlowUrl(origin *url.URL) *url.URL {
-	if u.Data.NeedOtp {
+	if u.NeedOtp {
 		return PrepareRedirectUrl("/login/otp", origin)
 	}
 	return nil
 }
 
 func (u UserAuth) IsGuest() bool {
-	return u.Data.ID == uuid.Nil
-}
-
-func (u UserAuth) SaveSessionData() error {
-	u.Session.Set("session-data", u.Data)
-	return u.Session.Save()
+	return u.ID == ""
 }
 
 func (h *HttpServer) RequireAdminAuthentication(next UserHandler) httprouter.Handle {
 	return h.RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
 		var role database.UserRole
 		if h.DbTx(rw, func(tx *database.Tx) (err error) {
-			role, err = tx.GetUserRole(auth.Data.ID)
+			role, err = tx.GetUserRole(auth.ID)
 			return
 		}) {
 			return
@@ -73,54 +58,27 @@ func (h *HttpServer) RequireAuthentication(next UserHandler) httprouter.Handle {
 
 func (h *HttpServer) OptionalAuthentication(flowPart bool, next UserHandler) httprouter.Handle {
 	return func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		auth, err := internalAuthenticationHandler(rw, req)
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if n := auth.NextFlowUrl(req.URL); n != nil && !flowPart {
-			http.Redirect(rw, req, n.String(), http.StatusFound)
-			return
-		}
-		if auth.IsGuest() {
-			if loginCookie, err := req.Cookie("tulip-login-data"); err == nil {
-				if decryptedBytes, err := base64.RawStdEncoding.DecodeString(loginCookie.Value); err == nil {
-					if decryptedData, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, h.signingKey.PrivateKey(), decryptedBytes, []byte("tulip-login-data")); err == nil {
-						if len(decryptedData) == 16 {
-							var u uuid.UUID
-							copy(u[:], decryptedData[:])
-							auth.Data.ID = u
-							auth.Data.NeedOtp = false
-						}
-					}
-				}
+		authData, err := h.internalAuthenticationHandler(req)
+		if err == nil {
+			if n := authData.NextFlowUrl(req.URL); n != nil && !flowPart {
+				http.Redirect(rw, req, n.String(), http.StatusFound)
+				return
 			}
 		}
-		next(rw, req, params, auth)
+		next(rw, req, params, authData)
 	}
 }
 
-func internalAuthenticationHandler(rw http.ResponseWriter, req *http.Request) (UserAuth, error) {
-	ss, err := session.Start(req.Context(), rw, req)
-	if err != nil {
-		return UserAuth{}, fmt.Errorf("failed to start session")
-	}
-
-	// get auth object
-	userIdRaw, ok := ss.Get("session-data")
-	if !ok {
-		return UserAuth{Session: ss}, nil
-	}
-	userData, ok := userIdRaw.(SessionData)
-	if !ok {
-		ss.Delete("session-data")
-		err := ss.Save()
+func (h *HttpServer) internalAuthenticationHandler(req *http.Request) (UserAuth, error) {
+	if loginCookie, err := req.Cookie("tulip-login-data"); err == nil {
+		_, b, err := mjwt.ExtractClaims[auth.AccessTokenClaims](h.signingKey, loginCookie.Value)
 		if err != nil {
-			return UserAuth{Session: ss}, fmt.Errorf("failed to reset invalid session data")
+			return UserAuth{}, err
 		}
+		return UserAuth{ID: b.Subject, NeedOtp: b.Claims.Perms.Has("need-otp")}, nil
 	}
-
-	return UserAuth{Session: ss, Data: userData}, nil
+	// not logged in
+	return UserAuth{}, nil
 }
 
 func PrepareRedirectUrl(targetPath string, origin *url.URL) *url.URL {

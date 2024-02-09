@@ -7,11 +7,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
+	"time"
 )
 
 func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
 	rw.Header().Set("Content-Type", "text/html")
-	rw.WriteHeader(http.StatusOK)
+	lNonce := uuid.NewString()
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "tulip-nonce",
+		Value:    lNonce,
+		Path:     "/",
+		Expires:  time.Now().Add(10 * time.Minute),
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
 	if auth.IsGuest() {
 		pages.RenderPageTemplate(rw, "index-guest", map[string]any{
 			"ServiceName": h.conf.ServiceName,
@@ -19,23 +29,20 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 		return
 	}
 
-	lNonce := uuid.NewString()
-	auth.Session.Set("action-nonce", lNonce)
-	if auth.Session.Save() != nil {
-		http.Error(rw, "Failed to save session", http.StatusInternalServerError)
-		return
-	}
-
 	var userWithName *database.User
 	var hasTwoFactor bool
 	if h.DbTx(rw, func(tx *database.Tx) (err error) {
-		userWithName, err = tx.GetUserDisplayName(auth.Data.ID)
+		userWithName, err = tx.GetUserDisplayName(auth.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get user display name: %w", err)
 		}
-		hasTwoFactor, err = tx.HasTwoFactor(auth.Data.ID)
+		hasTwoFactor, err = tx.HasTwoFactor(auth.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get user two factor state: %w", err)
+		}
+		userWithName.Role, err = tx.GetUserRole(auth.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get user role: %w", err)
 		}
 		return
 	}) {
@@ -47,5 +54,6 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 		"User":        userWithName,
 		"Nonce":       lNonce,
 		"OtpEnabled":  hasTwoFactor,
+		"IsAdmin":     userWithName.Role,
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
+	"time"
 )
 
 func (h *HttpServer) EditGet(rw http.ResponseWriter, _ *http.Request, _ httprouter.Params, auth UserAuth) {
@@ -15,7 +16,7 @@ func (h *HttpServer) EditGet(rw http.ResponseWriter, _ *http.Request, _ httprout
 
 	if h.DbTx(rw, func(tx *database.Tx) error {
 		var err error
-		user, err = tx.GetUser(auth.Data.ID)
+		user, err = tx.GetUser(auth.ID)
 		if err != nil {
 			return fmt.Errorf("failed to read user data: %w", err)
 		}
@@ -25,11 +26,14 @@ func (h *HttpServer) EditGet(rw http.ResponseWriter, _ *http.Request, _ httprout
 	}
 
 	lNonce := uuid.NewString()
-	auth.Session.Set("action-nonce", lNonce)
-	if auth.Session.Save() != nil {
-		http.Error(rw, "Failed to save session", http.StatusInternalServerError)
-		return
-	}
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "tulip-nonce",
+		Value:    lNonce,
+		Path:     "/",
+		Expires:  time.Now().Add(10 * time.Minute),
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
 	pages.RenderPageTemplate(rw, "edit", map[string]any{
 		"ServiceName":  h.conf.ServiceName,
 		"User":         user,
@@ -61,7 +65,7 @@ func (h *HttpServer) EditPost(rw http.ResponseWriter, req *http.Request, _ httpr
 		return
 	}
 	if h.DbTx(rw, func(tx *database.Tx) error {
-		if err := tx.ModifyUser(auth.Data.ID, &patch); err != nil {
+		if err := tx.ModifyUser(auth.ID, &patch); err != nil {
 			return fmt.Errorf("failed to modify user info: %w", err)
 		}
 		return nil

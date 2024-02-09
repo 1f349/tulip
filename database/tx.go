@@ -59,37 +59,37 @@ func (t *Tx) CheckLogin(un, pw string) (*User, bool, bool, error) {
 	return &u, hasOtp, hasVerify, err
 }
 
-func (t *Tx) GetUserDisplayName(sub uuid.UUID) (*User, error) {
+func (t *Tx) GetUserDisplayName(sub string) (*User, error) {
 	var u User
-	row := t.tx.QueryRow(`SELECT name FROM users WHERE subject = ? LIMIT 1`, sub.String())
+	row := t.tx.QueryRow(`SELECT name FROM users WHERE subject = ? LIMIT 1`, sub)
 	err := row.Scan(&u.Name)
 	u.Sub = sub
 	return &u, err
 }
 
-func (t *Tx) GetUserRole(sub uuid.UUID) (UserRole, error) {
+func (t *Tx) GetUserRole(sub string) (UserRole, error) {
 	var r UserRole
-	row := t.tx.QueryRow(`SELECT role FROM users WHERE subject = ? LIMIT 1`, sub.String())
+	row := t.tx.QueryRow(`SELECT role FROM users WHERE subject = ? LIMIT 1`, sub)
 	err := row.Scan(&r)
 	return r, err
 }
 
-func (t *Tx) GetUser(sub uuid.UUID) (*User, error) {
+func (t *Tx) GetUser(sub string) (*User, error) {
 	var u User
-	row := t.tx.QueryRow(`SELECT name, username, picture, website, email, email_verified, pronouns, birthdate, zoneinfo, locale, updated_at, active FROM users WHERE subject = ?`, sub.String())
+	row := t.tx.QueryRow(`SELECT name, username, picture, website, email, email_verified, pronouns, birthdate, zoneinfo, locale, updated_at, active FROM users WHERE subject = ?`, sub)
 	err := row.Scan(&u.Name, &u.Username, &u.Picture, &u.Website, &u.Email, &u.EmailVerified, &u.Pronouns, &u.Birthdate, &u.ZoneInfo, &u.Locale, &u.UpdatedAt, &u.Active)
 	u.Sub = sub
 	return &u, err
 }
 
-func (t *Tx) GetUserEmail(sub uuid.UUID) (string, error) {
+func (t *Tx) GetUserEmail(sub string) (string, error) {
 	var email string
-	row := t.tx.QueryRow(`SELECT email FROM users WHERE subject = ?`, sub.String())
+	row := t.tx.QueryRow(`SELECT email FROM users WHERE subject = ?`, sub)
 	err := row.Scan(&email)
 	return email, err
 }
 
-func (t *Tx) ChangeUserPassword(sub uuid.UUID, pwOld, pwNew string) error {
+func (t *Tx) ChangeUserPassword(sub, pwOld, pwNew string) error {
 	q, err := t.tx.Query(`SELECT password FROM users WHERE subject = ?`, sub)
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (t *Tx) ChangeUserPassword(sub uuid.UUID, pwOld, pwNew string) error {
 	return nil
 }
 
-func (t *Tx) ModifyUser(sub uuid.UUID, v *UserPatch) error {
+func (t *Tx) ModifyUser(sub string, v *UserPatch) error {
 	exec, err := t.tx.Exec(
 		`UPDATE users
 SET name       = ?,
@@ -166,19 +166,19 @@ WHERE subject = ?`,
 	return nil
 }
 
-func (t *Tx) SetTwoFactor(sub uuid.UUID, secret string, digits int) error {
+func (t *Tx) SetTwoFactor(sub string, secret string, digits int) error {
 	if secret == "" && digits == 0 {
-		_, err := t.tx.Exec(`DELETE FROM otp WHERE otp.subject = ?`, sub.String())
+		_, err := t.tx.Exec(`DELETE FROM otp WHERE otp.subject = ?`, sub)
 		return err
 	}
-	_, err := t.tx.Exec(`INSERT INTO otp(subject, secret, digits) VALUES (?, ?, ?) ON CONFLICT(subject) DO UPDATE SET secret = excluded.secret, digits = excluded.digits`, sub.String(), secret, digits)
+	_, err := t.tx.Exec(`INSERT INTO otp(subject, secret, digits) VALUES (?, ?, ?) ON CONFLICT(subject) DO UPDATE SET secret = excluded.secret, digits = excluded.digits`, sub, secret, digits)
 	return err
 }
 
-func (t *Tx) GetTwoFactor(sub uuid.UUID) (string, int, error) {
+func (t *Tx) GetTwoFactor(sub string) (string, int, error) {
 	var secret string
 	var digits int
-	row := t.tx.QueryRow(`SELECT secret, digits FROM otp WHERE subject = ?`, sub.String())
+	row := t.tx.QueryRow(`SELECT secret, digits FROM otp WHERE subject = ?`, sub)
 	err := row.Scan(&secret, &digits)
 	if err != nil {
 		return "", 0, err
@@ -186,7 +186,7 @@ func (t *Tx) GetTwoFactor(sub uuid.UUID) (string, int, error) {
 	return secret, digits, nil
 }
 
-func (t *Tx) HasTwoFactor(sub uuid.UUID) (bool, error) {
+func (t *Tx) HasTwoFactor(sub string) (bool, error) {
 	var hasOtp bool
 	row := t.tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM otp WHERE otp.subject = ?)`, sub)
 	err := row.Scan(&hasOtp)
@@ -207,9 +207,9 @@ func (t *Tx) GetClientInfo(sub string) (oauth2.ClientInfo, error) {
 	return &u, err
 }
 
-func (t *Tx) GetAppList(owner uuid.UUID, admin bool, offset int) ([]ClientInfoDbOutput, error) {
+func (t *Tx) GetAppList(owner string, admin bool, offset int) ([]ClientInfoDbOutput, error) {
 	var u []ClientInfoDbOutput
-	row, err := t.tx.Query(`SELECT subject, name, domain, owner, public, sso, active FROM client_store WHERE owner = ? OR ? = 1 LIMIT 25 OFFSET ?`, owner.String(), admin, offset)
+	row, err := t.tx.Query(`SELECT subject, name, domain, owner, public, sso, active FROM client_store WHERE owner = ? OR ? = 1 LIMIT 25 OFFSET ?`, owner, admin, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -225,27 +225,27 @@ func (t *Tx) GetAppList(owner uuid.UUID, admin bool, offset int) ([]ClientInfoDb
 	return u, row.Err()
 }
 
-func (t *Tx) InsertClientApp(name, domain string, public, sso, active bool, owner uuid.UUID) error {
+func (t *Tx) InsertClientApp(name, domain string, public, sso, active bool, owner string) error {
 	u := uuid.New()
 	secret, err := password.GenerateApiSecret(70)
 	if err != nil {
 		return err
 	}
-	_, err = t.tx.Exec(`INSERT INTO client_store (subject, name, secret, domain, owner, public, sso, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, u.String(), name, secret, domain, owner.String(), public, sso, active)
+	_, err = t.tx.Exec(`INSERT INTO client_store (subject, name, secret, domain, owner, public, sso, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, u.String(), name, secret, domain, owner, public, sso, active)
 	return err
 }
 
-func (t *Tx) UpdateClientApp(subject, owner uuid.UUID, name, domain string, public, sso, active bool) error {
-	_, err := t.tx.Exec(`UPDATE client_store SET name = ?, domain = ?, public = ?, sso = ?, active = ? WHERE subject = ? AND owner = ?`, name, domain, public, sso, active, subject.String(), owner.String())
+func (t *Tx) UpdateClientApp(subject, owner string, name, domain string, public, sso, active bool) error {
+	_, err := t.tx.Exec(`UPDATE client_store SET name = ?, domain = ?, public = ?, sso = ?, active = ? WHERE subject = ? AND owner = ?`, name, domain, public, sso, active, subject, owner)
 	return err
 }
 
-func (t *Tx) ResetClientAppSecret(subject, owner uuid.UUID) (string, error) {
+func (t *Tx) ResetClientAppSecret(subject, owner string) (string, error) {
 	secret, err := password.GenerateApiSecret(70)
 	if err != nil {
 		return "", err
 	}
-	_, err = t.tx.Exec(`UPDATE client_store SET secret = ? WHERE subject = ? AND owner = ?`, secret, subject.String(), owner.String())
+	_, err = t.tx.Exec(`UPDATE client_store SET secret = ? WHERE subject = ? AND owner = ?`, secret, subject, owner)
 	return secret, err
 }
 
@@ -266,22 +266,22 @@ func (t *Tx) GetUserList(offset int) ([]User, error) {
 	return u, row.Err()
 }
 
-func (t *Tx) UpdateUser(subject uuid.UUID, role UserRole, active bool) error {
+func (t *Tx) UpdateUser(subject string, role UserRole, active bool) error {
 	_, err := t.tx.Exec(`UPDATE users SET active = ?, role = ? WHERE subject = ?`, active, role, subject)
 	return err
 }
 
-func (t *Tx) VerifyUserEmail(sub uuid.UUID) error {
-	_, err := t.tx.Exec(`UPDATE users SET email_verified = 1 WHERE subject = ?`, sub.String())
+func (t *Tx) VerifyUserEmail(sub string) error {
+	_, err := t.tx.Exec(`UPDATE users SET email_verified = 1 WHERE subject = ?`, sub)
 	return err
 }
 
-func (t *Tx) UserResetPassword(sub uuid.UUID, pw string) error {
+func (t *Tx) UserResetPassword(sub string, pw string) error {
 	hashPassword, err := password.HashPassword(pw)
 	if err != nil {
 		return err
 	}
-	exec, err := t.tx.Exec(`UPDATE users SET password = ?, updated_at = ? WHERE subject = ?`, hashPassword, updatedAt(), sub.String())
+	exec, err := t.tx.Exec(`UPDATE users SET password = ?, updated_at = ? WHERE subject = ?`, hashPassword, updatedAt(), sub)
 	if err != nil {
 		return err
 	}

@@ -4,21 +4,14 @@ import (
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
 	"github.com/emersion/go-message/mail"
-	"github.com/go-session/session"
-	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
 )
 
-func (h *HttpServer) MailVerify(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (h *HttpServer) MailVerify(rw http.ResponseWriter, _ *http.Request, params httprouter.Params) {
 	code := params.ByName("code")
-	parse, err := uuid.Parse(code)
-	if err != nil {
-		http.Error(rw, "Invalid email verification code", http.StatusBadRequest)
-		return
-	}
 
-	k := mailLinkKey{mailLinkVerifyEmail, parse}
+	k := mailLinkKey{mailLinkVerifyEmail, code}
 
 	userSub, ok := h.mailLinkCache.Get(k)
 	if !ok {
@@ -36,45 +29,26 @@ func (h *HttpServer) MailVerify(rw http.ResponseWriter, req *http.Request, param
 	http.Error(rw, "Email address has been verified, you may close this tab and return to the login page.", http.StatusOK)
 }
 
-func (h *HttpServer) MailPassword(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (h *HttpServer) MailPassword(rw http.ResponseWriter, _ *http.Request, params httprouter.Params) {
 	code := params.ByName("code")
-	parse, err := uuid.Parse(code)
-	if err != nil {
-		http.Error(rw, "Invalid password reset code", http.StatusBadRequest)
-		return
-	}
 
-	k := mailLinkKey{mailLinkResetPassword, parse}
-
-	userSub, ok := h.mailLinkCache.Get(k)
+	k := mailLinkKey{mailLinkResetPassword, code}
+	_, ok := h.mailLinkCache.Get(k)
 	if !ok {
 		http.Error(rw, "Invalid password reset code", http.StatusBadRequest)
 		return
 	}
 
-	h.mailLinkCache.Delete(k)
-
-	ss, err := session.Start(req.Context(), rw, req)
-	if err != nil {
-		http.Error(rw, "Error loading session", http.StatusInternalServerError)
-		return
-	}
-
-	ss.Set("mail-reset-password-user", userSub)
-	err = ss.Save()
-	if err != nil {
-		http.Error(rw, "Error saving session", http.StatusInternalServerError)
-		return
-	}
-
 	pages.RenderPageTemplate(rw, "reset-password", map[string]any{
 		"ServiceName": h.conf.ServiceName,
+		"Code":        code,
 	})
 }
 
-func (h *HttpServer) MailPasswordPost(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (h *HttpServer) MailPasswordPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	pw := req.PostFormValue("new_password")
 	rpw := req.PostFormValue("confirm_password")
+	code := req.PostFormValue("code")
 
 	// reverse passwords are possible
 	if len(pw) == 0 {
@@ -91,24 +65,14 @@ func (h *HttpServer) MailPasswordPost(rw http.ResponseWriter, req *http.Request,
 		return
 	}
 
-	// start session
-	ss, err := session.Start(req.Context(), rw, req)
-	if err != nil {
-		http.Error(rw, "Error loading session", http.StatusInternalServerError)
-		return
-	}
-
-	// get user to reset password for from session
-	userRaw, found := ss.Get("mail-reset-password-user")
-	if !found {
-		http.Error(rw, "Invalid password reset code", http.StatusBadRequest)
-		return
-	}
-	userSub, ok := userRaw.(uuid.UUID)
+	k := mailLinkKey{mailLinkResetPassword, code}
+	userSub, ok := h.mailLinkCache.Get(k)
 	if !ok {
 		http.Error(rw, "Invalid password reset code", http.StatusBadRequest)
 		return
 	}
+
+	h.mailLinkCache.Delete(k)
 
 	// reset password database call
 	if h.DbTx(rw, func(tx *database.Tx) error {
@@ -120,16 +84,10 @@ func (h *HttpServer) MailPasswordPost(rw http.ResponseWriter, req *http.Request,
 	http.Error(rw, "Reset password successfully, you can login now.", http.StatusOK)
 }
 
-func (h *HttpServer) MailDelete(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (h *HttpServer) MailDelete(rw http.ResponseWriter, _ *http.Request, params httprouter.Params) {
 	code := params.ByName("code")
-	parse, err := uuid.Parse(code)
-	if err != nil {
-		http.Error(rw, "Invalid email delete code", http.StatusBadRequest)
-		return
-	}
 
-	k := mailLinkKey{mailLinkDelete, parse}
-
+	k := mailLinkKey{mailLinkDelete, code}
 	userSub, ok := h.mailLinkCache.Get(k)
 	if !ok {
 		http.Error(rw, "Invalid email delete code", http.StatusBadRequest)
