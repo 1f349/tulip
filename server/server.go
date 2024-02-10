@@ -14,7 +14,6 @@ import (
 	scope2 "github.com/1f349/tulip/scope"
 	"github.com/1f349/tulip/theme"
 	"github.com/go-oauth2/oauth2/v4/errors"
-	"github.com/go-oauth2/oauth2/v4/generates"
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
@@ -86,7 +85,7 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 
 	oauthManager.SetAuthorizeCodeTokenCfg(manage.DefaultAuthorizeCodeTokenCfg)
 	oauthManager.MustTokenStorage(store.NewMemoryTokenStore())
-	oauthManager.MapAccessGenerate(generates.NewAccessGenerate())
+	oauthManager.MapAccessGenerate(NewJWTAccessGenerate(hs.signingKey))
 	oauthManager.MapClientStorage(clientStore.New(db))
 
 	oauthSrv.SetResponseErrorHandler(func(re *errors.Response) {
