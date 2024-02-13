@@ -126,6 +126,10 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 		NeedOtp: hasOtp,
 	}
 
+	if h.setLoginDataCookie(rw, auth) {
+		return
+	}
+
 	if hasOtp {
 		originUrl, err := url.Parse(req.FormValue("redirect"))
 		if err != nil {
@@ -137,9 +141,6 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 		return
 	}
 
-	if h.setLoginDataCookie(rw, auth) {
-		return
-	}
 	h.SafeRedirect(rw, req)
 }
 
