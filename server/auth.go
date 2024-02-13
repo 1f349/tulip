@@ -75,7 +75,7 @@ func (h *HttpServer) internalAuthenticationHandler(req *http.Request) (UserAuth,
 		if err != nil {
 			return UserAuth{}, err
 		}
-		return UserAuth{ID: b.Subject, NeedOtp: b.Claims.Perms.Has("need-otp")}, nil
+		return UserAuth{ID: b.Subject, NeedOtp: b.Claims.Perms.Has("needs-otp")}, nil
 	}
 	// not logged in
 	return UserAuth{}, nil
