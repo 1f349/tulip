@@ -13,7 +13,6 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20231106173351-e73c9f7bad43
 	github.com/emersion/go-smtp v0.20.2
 	github.com/go-oauth2/oauth2/v4 v4.5.2
-	github.com/go-session/session v3.1.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/subcommands v1.2.0
 	github.com/google/uuid v1.6.0

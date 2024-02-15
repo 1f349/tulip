@@ -17,7 +17,6 @@ import (
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
-	"github.com/go-session/session"
 	"github.com/julienschmidt/httprouter"
 	"log"
 	"net/http"
@@ -52,8 +51,6 @@ type mailLinkKey struct {
 }
 
 func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Server {
-	session.InitManager(session.SetCookieName("tulip_session"))
-
 	r := httprouter.New()
 
 	// remove last slash from baseUrl
