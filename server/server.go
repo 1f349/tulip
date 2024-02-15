@@ -115,6 +115,7 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 		}
 		return a, nil
 	})
+	addIdTokenSupport(oauthSrv, db, signingKey)
 
 	r.GET("/.well-known/openid-configuration", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		rw.WriteHeader(http.StatusOK)
