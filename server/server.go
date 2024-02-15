@@ -210,6 +210,7 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 		}
 		if claims["username"] {
 			m["preferred_username"] = userData.Username
+			m["login"] = userData.Username
 		}
 		if claims["profile"] {
 			m["profile"] = conf.BaseUrl + "/user/" + userData.Username
