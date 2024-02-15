@@ -134,7 +134,7 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 				Path:     "/",
 				MaxAge:   -1,
 				Secure:   true,
-				SameSite: http.SameSiteStrictMode,
+				SameSite: http.SameSiteLaxMode,
 			})
 
 			http.Redirect(rw, req, "/", http.StatusFound)

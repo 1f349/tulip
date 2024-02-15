@@ -32,7 +32,7 @@ func (h *HttpServer) EditGet(rw http.ResponseWriter, _ *http.Request, _ httprout
 		Path:     "/",
 		Expires:  time.Now().Add(10 * time.Minute),
 		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	pages.RenderPageTemplate(rw, "edit", map[string]any{
 		"ServiceName":  h.conf.ServiceName,

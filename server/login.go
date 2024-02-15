@@ -162,7 +162,7 @@ func (h *HttpServer) setLoginDataCookie(rw http.ResponseWriter, authData UserAut
 		Path:     "/",
 		Expires:  time.Now().AddDate(1, 0, 0),
 		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	return false
 }

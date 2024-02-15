@@ -19,7 +19,7 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 		Path:     "/",
 		Expires:  time.Now().Add(10 * time.Minute),
 		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 	if auth.IsGuest() {
