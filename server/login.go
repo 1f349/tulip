@@ -144,7 +144,7 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 	h.SafeRedirect(rw, req)
 }
 
-var oneYear = 365 * 24 * time.Hour
+const oneYear = 365 * 24 * time.Hour
 
 func (h *HttpServer) setLoginDataCookie(rw http.ResponseWriter, authData UserAuth) bool {
 	ps := claims.NewPermStorage()
