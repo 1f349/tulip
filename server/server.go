@@ -31,7 +31,7 @@ type HttpServer struct {
 	r          *httprouter.Router
 	oauthSrv   *server.Server
 	oauthMgr   *manage.Manager
-	db         *database.DB
+	db         *database.Queries
 	conf       Conf
 	signingKey mjwt.Signer
 
@@ -50,7 +50,7 @@ type mailLinkKey struct {
 	data   string
 }
 
-func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Server {
+func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *http.Server {
 	r := httprouter.New()
 
 	// remove last slash from baseUrl
@@ -191,10 +191,10 @@ func NewHttpServer(conf Conf, db *database.DB, signingKey mjwt.Signer) *http.Ser
 			return
 		}
 
-		var userData *database.User
+		var userData database.GetUserRow
 
-		if hs.DbTx(rw, func(tx *database.Tx) (err error) {
-			userData, err = tx.GetUser(userId)
+		if hs.DbTx(rw, func(tx *database.Queries) (err error) {
+			userData, err = tx.GetUser(req.Context(), userId)
 			return err
 		}) {
 			return

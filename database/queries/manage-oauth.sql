@@ -1,5 +1,5 @@
 -- name: GetClientInfo :one
-SELECT secret, name, domain, public, sso, active
+SELECT *
 FROM client_store
 WHERE subject = ?
 LIMIT 1;

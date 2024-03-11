@@ -62,7 +62,7 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 	var loginMismatch byte
 	var hasOtp bool
 
-	if h.DbTx(rw, func(tx *database.Tx) error {
+	if h.DbTx(rw, func(tx *database.Queries) error {
 		loginUser, hasOtpRaw, hasVerifiedEmail, err := tx.CheckLogin(un, pw)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
@@ -176,7 +176,7 @@ func (h *HttpServer) LoginResetPasswordPost(rw http.ResponseWriter, req *http.Re
 	}
 
 	var emailExists bool
-	if h.DbTx(rw, func(tx *database.Tx) (err error) {
+	if h.DbTx(rw, func(tx *database.Queries) (err error) {
 		emailExists, err = tx.UserEmailExists(email)
 		return err
 	}) {

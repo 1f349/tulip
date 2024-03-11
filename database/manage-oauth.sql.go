@@ -7,7 +7,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 )
 
 const getAppList = `-- name: GetAppList :many
@@ -25,13 +24,13 @@ type GetAppListParams struct {
 }
 
 type GetAppListRow struct {
-	Subject string        `json:"subject"`
-	Name    string        `json:"name"`
-	Domain  string        `json:"domain"`
-	Owner   string        `json:"owner"`
-	Public  sql.NullInt64 `json:"public"`
-	Sso     sql.NullInt64 `json:"sso"`
-	Active  sql.NullInt64 `json:"active"`
+	Subject string `json:"subject"`
+	Name    string `json:"name"`
+	Domain  string `json:"domain"`
+	Owner   string `json:"owner"`
+	Public  bool   `json:"public"`
+	Sso     bool   `json:"sso"`
+	Active  bool   `json:"active"`
 }
 
 func (q *Queries) GetAppList(ctx context.Context, arg GetAppListParams) ([]GetAppListRow, error) {
@@ -66,28 +65,21 @@ func (q *Queries) GetAppList(ctx context.Context, arg GetAppListParams) ([]GetAp
 }
 
 const getClientInfo = `-- name: GetClientInfo :one
-SELECT secret, name, domain, public, sso, active
+SELECT subject, name, secret, domain, owner, public, sso, active
 FROM client_store
 WHERE subject = ?
 LIMIT 1
 `
 
-type GetClientInfoRow struct {
-	Secret string        `json:"secret"`
-	Name   string        `json:"name"`
-	Domain string        `json:"domain"`
-	Public sql.NullInt64 `json:"public"`
-	Sso    sql.NullInt64 `json:"sso"`
-	Active sql.NullInt64 `json:"active"`
-}
-
-func (q *Queries) GetClientInfo(ctx context.Context, subject string) (GetClientInfoRow, error) {
+func (q *Queries) GetClientInfo(ctx context.Context, subject string) (ClientStore, error) {
 	row := q.db.QueryRowContext(ctx, getClientInfo, subject)
-	var i GetClientInfoRow
+	var i ClientStore
 	err := row.Scan(
-		&i.Secret,
+		&i.Subject,
 		&i.Name,
+		&i.Secret,
 		&i.Domain,
+		&i.Owner,
 		&i.Public,
 		&i.Sso,
 		&i.Active,
@@ -101,14 +93,14 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertClientAppParams struct {
-	Subject string        `json:"subject"`
-	Name    string        `json:"name"`
-	Secret  string        `json:"secret"`
-	Domain  string        `json:"domain"`
-	Owner   string        `json:"owner"`
-	Public  sql.NullInt64 `json:"public"`
-	Sso     sql.NullInt64 `json:"sso"`
-	Active  sql.NullInt64 `json:"active"`
+	Subject string `json:"subject"`
+	Name    string `json:"name"`
+	Secret  string `json:"secret"`
+	Domain  string `json:"domain"`
+	Owner   string `json:"owner"`
+	Public  bool   `json:"public"`
+	Sso     bool   `json:"sso"`
+	Active  bool   `json:"active"`
 }
 
 func (q *Queries) InsertClientApp(ctx context.Context, arg InsertClientAppParams) error {
@@ -137,13 +129,13 @@ WHERE subject = ?
 `
 
 type UpdateClientAppParams struct {
-	Name    string        `json:"name"`
-	Domain  string        `json:"domain"`
-	Public  sql.NullInt64 `json:"public"`
-	Sso     sql.NullInt64 `json:"sso"`
-	Active  sql.NullInt64 `json:"active"`
-	Subject string        `json:"subject"`
-	Owner   string        `json:"owner"`
+	Name    string `json:"name"`
+	Domain  string `json:"domain"`
+	Public  bool   `json:"public"`
+	Sso     bool   `json:"sso"`
+	Active  bool   `json:"active"`
+	Subject string `json:"subject"`
+	Owner   string `json:"owner"`
 }
 
 func (q *Queries) UpdateClientApp(ctx context.Context, arg UpdateClientAppParams) error {

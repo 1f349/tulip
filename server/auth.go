@@ -4,6 +4,7 @@ import (
 	"github.com/1f349/mjwt"
 	"github.com/1f349/mjwt/auth"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/database/types"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"net/url"
@@ -30,14 +31,14 @@ func (u UserAuth) IsGuest() bool {
 
 func (h *HttpServer) RequireAdminAuthentication(next UserHandler) httprouter.Handle {
 	return h.RequireAuthentication(func(rw http.ResponseWriter, req *http.Request, params httprouter.Params, auth UserAuth) {
-		var role database.UserRole
-		if h.DbTx(rw, func(tx *database.Tx) (err error) {
-			role, err = tx.GetUserRole(auth.ID)
+		var role types.UserRole
+		if h.DbTx(rw, func(tx *database.Queries) (err error) {
+			role, err = tx.GetUserRole(req.Context(), auth.ID)
 			return
 		}) {
 			return
 		}
-		if role != database.RoleAdmin {
+		if role != types.RoleAdmin {
 			http.Error(rw, "403 Forbidden", http.StatusForbidden)
 			return
 		}

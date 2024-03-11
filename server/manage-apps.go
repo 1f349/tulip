@@ -22,14 +22,14 @@ func (h *HttpServer) ManageAppsGet(rw http.ResponseWriter, req *http.Request, _ 
 		}
 	}
 
-	var role database.UserRole
-	var appList []database.ClientInfoDbOutput
-	if h.DbTx(rw, func(tx *database.Tx) (err error) {
+	var role types.UserRole
+	var appList []database.ClientStore
+	if h.DbTx(rw, func(tx *database.Queries) (err error) {
 		role, err = tx.GetUserRole(auth.ID)
 		if err != nil {
 			return
 		}
-		appList, err = tx.GetAppList(auth.ID, role == database.RoleAdmin, offset)
+		appList, err = tx.GetAppList(auth.ID, role == types.RoleAdmin, offset)
 		return
 	}) {
 		return
@@ -39,7 +39,7 @@ func (h *HttpServer) ManageAppsGet(rw http.ResponseWriter, req *http.Request, _ 
 		"ServiceName":  h.conf.ServiceName,
 		"Apps":         appList,
 		"Offset":       offset,
-		"IsAdmin":      role == database.RoleAdmin,
+		"IsAdmin":      role == types.RoleAdmin,
 		"NewAppName":   q.Get("NewAppName"),
 		"NewAppSecret": q.Get("NewAppSecret"),
 	}
@@ -76,14 +76,14 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 	active := req.Form.Has("active")
 
 	if sso {
-		var role database.UserRole
-		if h.DbTx(rw, func(tx *database.Tx) (err error) {
+		var role types.UserRole
+		if h.DbTx(rw, func(tx *database.Queries) (err error) {
 			role, err = tx.GetUserRole(auth.ID)
 			return
 		}) {
 			return
 		}
-		if role != database.RoleAdmin {
+		if role != types.RoleAdmin {
 			http.Error(rw, "400 Bad Request: Only admin users can create SSO client applications", http.StatusBadRequest)
 			return
 		}
@@ -91,13 +91,13 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 
 	switch action {
 	case "create":
-		if h.DbTx(rw, func(tx *database.Tx) error {
+		if h.DbTx(rw, func(tx *database.Queries) error {
 			return tx.InsertClientApp(name, domain, public, sso, active, auth.ID)
 		}) {
 			return
 		}
 	case "edit":
-		if h.DbTx(rw, func(tx *database.Tx) error {
+		if h.DbTx(rw, func(tx *database.Queries) error {
 			return tx.UpdateClientApp(req.Form.Get("subject"), auth.ID, name, domain, public, sso, active)
 		}) {
 			return
@@ -105,7 +105,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 	case "secret":
 		var info oauth2.ClientInfo
 		var secret string
-		if h.DbTx(rw, func(tx *database.Tx) error {
+		if h.DbTx(rw, func(tx *database.Queries) error {
 			sub := req.Form.Get("subject")
 			info, err = tx.GetClientInfo(sub)
 			if err != nil {

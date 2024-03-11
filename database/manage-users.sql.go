@@ -7,7 +7,9 @@ package database
 
 import (
 	"context"
-	"database/sql"
+	"time"
+
+	"github.com/1f349/tulip/database/types"
 )
 
 const getUserList = `-- name: GetUserList :many
@@ -25,15 +27,15 @@ LIMIT 25 OFFSET ?
 `
 
 type GetUserListRow struct {
-	Subject       string        `json:"subject"`
-	Name          string        `json:"name"`
-	Username      string        `json:"username"`
-	Picture       interface{}   `json:"picture"`
-	Email         string        `json:"email"`
-	EmailVerified int64         `json:"email_verified"`
-	Role          int64         `json:"role"`
-	UpdatedAt     sql.NullTime  `json:"updated_at"`
-	Active        sql.NullInt64 `json:"active"`
+	Subject       string         `json:"subject"`
+	Name          string         `json:"name"`
+	Username      string         `json:"username"`
+	Picture       string         `json:"picture"`
+	Email         string         `json:"email"`
+	EmailVerified bool           `json:"email_verified"`
+	Role          types.UserRole `json:"role"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	Active        bool           `json:"active"`
 }
 
 func (q *Queries) GetUserList(ctx context.Context, offset int64) ([]GetUserListRow, error) {
@@ -77,9 +79,9 @@ WHERE subject = ?
 `
 
 type UpdateUserRoleParams struct {
-	Active  sql.NullInt64 `json:"active"`
-	Role    int64         `json:"role"`
-	Subject string        `json:"subject"`
+	Active  bool           `json:"active"`
+	Role    types.UserRole `json:"role"`
+	Subject string         `json:"subject"`
 }
 
 func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error {

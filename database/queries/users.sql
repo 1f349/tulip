@@ -13,21 +13,20 @@ WHERE username = ?
 LIMIT 1;
 
 -- name: GetUser :one
-SELECT name,
-       username,
-       picture,
-       website,
-       email,
-       email_verified,
-       pronouns,
-       birthdate,
-       zoneinfo,
-       locale,
-       updated_at,
-       active
+SELECT *
 FROM users
 WHERE subject = ?
 LIMIT 1;
+
+-- name: GetUserRole :one
+SELECT role
+FROM users
+WHERE subject = ?;
+
+-- name: GetUserDisplayName :one
+SELECT name
+FROM users
+WHERE subject = ?;
 
 -- name: getUserPassword :one
 SELECT password
@@ -68,3 +67,6 @@ WHERE otp.subject = ?;
 SELECT secret, digits
 FROM otp
 WHERE subject = ?;
+
+-- name: HasTwoFactor :one
+SELECT cast(EXISTS(SELECT 1 FROM otp WHERE subject = ?) AS BOOLEAN);

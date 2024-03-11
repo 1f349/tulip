@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/database/types"
 	"github.com/1f349/tulip/pages"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
@@ -29,18 +30,19 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 		return
 	}
 
-	var userWithName *database.User
+	var userWithName string
+	var userRole types.UserRole
 	var hasTwoFactor bool
-	if h.DbTx(rw, func(tx *database.Tx) (err error) {
-		userWithName, err = tx.GetUserDisplayName(auth.ID)
+	if h.DbTx(rw, func(tx *database.Queries) (err error) {
+		userWithName, err = tx.GetUserDisplayName(req.Context(), auth.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get user display name: %w", err)
 		}
-		hasTwoFactor, err = tx.HasTwoFactor(auth.ID)
+		hasTwoFactor, err = tx.HasTwoFactor(req.Context(), auth.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get user two factor state: %w", err)
 		}
-		userWithName.Role, err = tx.GetUserRole(auth.ID)
+		userRole, err = tx.GetUserRole(req.Context(), auth.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get user role: %w", err)
 		}
@@ -54,6 +56,6 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 		"User":        userWithName,
 		"Nonce":       lNonce,
 		"OtpEnabled":  hasTwoFactor,
-		"IsAdmin":     userWithName.Role,
+		"IsAdmin":     userRole == types.RoleAdmin,
 	})
 }

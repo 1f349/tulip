@@ -6,17 +6,21 @@ package database
 
 import (
 	"database/sql"
+	"time"
+
+	"github.com/1f349/tulip/database/types"
+	"github.com/1f349/tulip/password"
 )
 
 type ClientStore struct {
-	Subject string        `json:"subject"`
-	Name    string        `json:"name"`
-	Secret  string        `json:"secret"`
-	Domain  string        `json:"domain"`
-	Owner   string        `json:"owner"`
-	Public  sql.NullInt64 `json:"public"`
-	Sso     sql.NullInt64 `json:"sso"`
-	Active  sql.NullInt64 `json:"active"`
+	Subject string `json:"subject"`
+	Name    string `json:"name"`
+	Secret  string `json:"secret"`
+	Domain  string `json:"domain"`
+	Owner   string `json:"owner"`
+	Public  bool   `json:"public"`
+	Sso     bool   `json:"sso"`
+	Active  bool   `json:"active"`
 }
 
 type Otp struct {
@@ -26,20 +30,20 @@ type Otp struct {
 }
 
 type User struct {
-	Subject       string        `json:"subject"`
-	Name          string        `json:"name"`
-	Username      string        `json:"username"`
-	Password      string        `json:"password"`
-	Picture       interface{}   `json:"picture"`
-	Website       interface{}   `json:"website"`
-	Email         string        `json:"email"`
-	EmailVerified int64         `json:"email_verified"`
-	Pronouns      interface{}   `json:"pronouns"`
-	Birthdate     sql.NullTime  `json:"birthdate"`
-	Zoneinfo      interface{}   `json:"zoneinfo"`
-	Locale        interface{}   `json:"locale"`
-	Role          int64         `json:"role"`
-	UpdatedAt     sql.NullTime  `json:"updated_at"`
-	Registered    sql.NullInt64 `json:"registered"`
-	Active        sql.NullInt64 `json:"active"`
+	Subject       string              `json:"subject"`
+	Name          string              `json:"name"`
+	Username      string              `json:"username"`
+	Password      password.HashString `json:"password"`
+	Picture       string              `json:"picture"`
+	Website       string              `json:"website"`
+	Email         string              `json:"email"`
+	EmailVerified bool                `json:"email_verified"`
+	Pronouns      types.UserPronoun   `json:"pronouns"`
+	Birthdate     sql.NullTime        `json:"birthdate"`
+	Zoneinfo      types.UserZone      `json:"zoneinfo"`
+	Locale        types.UserLocale    `json:"locale"`
+	Role          types.UserRole      `json:"role"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+	Registered    time.Time           `json:"registered"`
+	Active        bool                `json:"active"`
 }

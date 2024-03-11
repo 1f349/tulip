@@ -11,12 +11,12 @@ import (
 	"time"
 )
 
-func (h *HttpServer) EditGet(rw http.ResponseWriter, _ *http.Request, _ httprouter.Params, auth UserAuth) {
-	var user *database.User
+func (h *HttpServer) EditGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
+	var user database.User
 
-	if h.DbTx(rw, func(tx *database.Tx) error {
+	if h.DbTx(rw, func(tx *database.Queries) error {
 		var err error
-		user, err = tx.GetUser(auth.ID)
+		user, err = tx.GetUser(req.Context(), auth.ID)
 		if err != nil {
 			return fmt.Errorf("failed to read user data: %w", err)
 		}
@@ -64,8 +64,19 @@ func (h *HttpServer) EditPost(rw http.ResponseWriter, req *http.Request, _ httpr
 		_, _ = fmt.Fprintln(rw, "</body>\n</html>")
 		return
 	}
-	if h.DbTx(rw, func(tx *database.Tx) error {
-		if err := tx.ModifyUser(auth.ID, &patch); err != nil {
+	m := database.ModifyUserParams{
+		Name:      patch.Name,
+		Picture:   patch.Picture,
+		Website:   patch.Website,
+		Pronouns:  patch.Pronouns,
+		Birthdate: patch.Birthdate,
+		Zoneinfo:  patch.ZoneInfo,
+		Locale:    patch.Locale,
+		UpdatedAt: time.Now(),
+		Subject:   auth.ID,
+	}
+	if h.DbTx(rw, func(tx *database.Queries) error {
+		if _, err := tx.ModifyUser(req.Context(), m); err != nil {
 			return fmt.Errorf("failed to modify user info: %w", err)
 		}
 		return nil

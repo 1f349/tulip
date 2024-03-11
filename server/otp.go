@@ -47,7 +47,7 @@ func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub, code strin
 	var hasOtp bool
 	var secret string
 	var digits int
-	if h.DbTx(rw, func(tx *database.Tx) (err error) {
+	if h.DbTx(rw, func(tx *database.Queries) (err error) {
 		hasOtp, err = tx.HasTwoFactor(sub)
 		if err != nil {
 			return
@@ -86,7 +86,7 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 			return
 		}
 
-		if h.DbTx(rw, func(tx *database.Tx) error {
+		if h.DbTx(rw, func(tx *database.Queries) error {
 			return tx.SetTwoFactor(auth.ID, "", 0)
 		}) {
 			return
@@ -118,7 +118,7 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 	if secret == "" {
 		// get user email
 		var email string
-		if h.DbTx(rw, func(tx *database.Tx) error {
+		if h.DbTx(rw, func(tx *database.Queries) error {
 			var err error
 			email, err = tx.GetUserEmail(auth.ID)
 			return err
@@ -167,7 +167,7 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 		return
 	}
 
-	if h.DbTx(rw, func(tx *database.Tx) error {
+	if h.DbTx(rw, func(tx *database.Queries) error {
 		return tx.SetTwoFactor(auth.ID, secret, digits)
 	}) {
 		return

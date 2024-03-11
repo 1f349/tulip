@@ -8,6 +8,10 @@ package database
 import (
 	"context"
 	"database/sql"
+	"time"
+
+	"github.com/1f349/tulip/database/types"
+	"github.com/1f349/tulip/password"
 )
 
 const deleteTwoFactor = `-- name: DeleteTwoFactor :exec
@@ -40,44 +44,20 @@ func (q *Queries) GetTwoFactor(ctx context.Context, subject string) (GetTwoFacto
 }
 
 const getUser = `-- name: GetUser :one
-SELECT name,
-       username,
-       picture,
-       website,
-       email,
-       email_verified,
-       pronouns,
-       birthdate,
-       zoneinfo,
-       locale,
-       updated_at,
-       active
+SELECT subject, name, username, password, picture, website, email, email_verified, pronouns, birthdate, zoneinfo, locale, role, updated_at, registered, active
 FROM users
 WHERE subject = ?
 LIMIT 1
 `
 
-type GetUserRow struct {
-	Name          string        `json:"name"`
-	Username      string        `json:"username"`
-	Picture       interface{}   `json:"picture"`
-	Website       interface{}   `json:"website"`
-	Email         string        `json:"email"`
-	EmailVerified int64         `json:"email_verified"`
-	Pronouns      interface{}   `json:"pronouns"`
-	Birthdate     sql.NullTime  `json:"birthdate"`
-	Zoneinfo      interface{}   `json:"zoneinfo"`
-	Locale        interface{}   `json:"locale"`
-	UpdatedAt     sql.NullTime  `json:"updated_at"`
-	Active        sql.NullInt64 `json:"active"`
-}
-
-func (q *Queries) GetUser(ctx context.Context, subject string) (GetUserRow, error) {
+func (q *Queries) GetUser(ctx context.Context, subject string) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUser, subject)
-	var i GetUserRow
+	var i User
 	err := row.Scan(
+		&i.Subject,
 		&i.Name,
 		&i.Username,
+		&i.Password,
 		&i.Picture,
 		&i.Website,
 		&i.Email,
@@ -86,10 +66,49 @@ func (q *Queries) GetUser(ctx context.Context, subject string) (GetUserRow, erro
 		&i.Birthdate,
 		&i.Zoneinfo,
 		&i.Locale,
+		&i.Role,
 		&i.UpdatedAt,
+		&i.Registered,
 		&i.Active,
 	)
 	return i, err
+}
+
+const getUserDisplayName = `-- name: GetUserDisplayName :one
+SELECT name
+FROM users
+WHERE subject = ?
+`
+
+func (q *Queries) GetUserDisplayName(ctx context.Context, subject string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserDisplayName, subject)
+	var name string
+	err := row.Scan(&name)
+	return name, err
+}
+
+const getUserRole = `-- name: GetUserRole :one
+SELECT role
+FROM users
+WHERE subject = ?
+`
+
+func (q *Queries) GetUserRole(ctx context.Context, subject string) (types.UserRole, error) {
+	row := q.db.QueryRowContext(ctx, getUserRole, subject)
+	var role types.UserRole
+	err := row.Scan(&role)
+	return role, err
+}
+
+const hasTwoFactor = `-- name: HasTwoFactor :one
+SELECT cast(EXISTS(SELECT 1 FROM otp WHERE subject = ?) AS BOOLEAN)
+`
+
+func (q *Queries) HasTwoFactor(ctx context.Context, subject string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasTwoFactor, subject)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const hasUser = `-- name: HasUser :one
@@ -118,15 +137,15 @@ WHERE subject = ?
 `
 
 type ModifyUserParams struct {
-	Name      string       `json:"name"`
-	Picture   interface{}  `json:"picture"`
-	Website   interface{}  `json:"website"`
-	Pronouns  interface{}  `json:"pronouns"`
-	Birthdate sql.NullTime `json:"birthdate"`
-	Zoneinfo  interface{}  `json:"zoneinfo"`
-	Locale    interface{}  `json:"locale"`
-	UpdatedAt sql.NullTime `json:"updated_at"`
-	Subject   string       `json:"subject"`
+	Name      string            `json:"name"`
+	Picture   string            `json:"picture"`
+	Website   string            `json:"website"`
+	Pronouns  types.UserPronoun `json:"pronouns"`
+	Birthdate sql.NullTime      `json:"birthdate"`
+	Zoneinfo  types.UserZone    `json:"zoneinfo"`
+	Locale    types.UserLocale  `json:"locale"`
+	UpdatedAt time.Time         `json:"updated_at"`
+	Subject   string            `json:"subject"`
 }
 
 func (q *Queries) ModifyUser(ctx context.Context, arg ModifyUserParams) (int64, error) {
@@ -171,15 +190,15 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type addUserParams struct {
-	Subject       string        `json:"subject"`
-	Name          string        `json:"name"`
-	Username      string        `json:"username"`
-	Password      string        `json:"password"`
-	Email         string        `json:"email"`
-	EmailVerified int64         `json:"email_verified"`
-	Role          int64         `json:"role"`
-	UpdatedAt     sql.NullTime  `json:"updated_at"`
-	Active        sql.NullInt64 `json:"active"`
+	Subject       string              `json:"subject"`
+	Name          string              `json:"name"`
+	Username      string              `json:"username"`
+	Password      password.HashString `json:"password"`
+	Email         string              `json:"email"`
+	EmailVerified bool                `json:"email_verified"`
+	Role          types.UserRole      `json:"role"`
+	UpdatedAt     time.Time           `json:"updated_at"`
+	Active        bool                `json:"active"`
 }
 
 func (q *Queries) addUser(ctx context.Context, arg addUserParams) error {
@@ -206,10 +225,10 @@ WHERE subject = ?
 `
 
 type changeUserPasswordParams struct {
-	Password   string       `json:"password"`
-	UpdatedAt  sql.NullTime `json:"updated_at"`
-	Subject    string       `json:"subject"`
-	Password_2 string       `json:"password_2"`
+	Password   password.HashString `json:"password"`
+	UpdatedAt  time.Time           `json:"updated_at"`
+	Subject    string              `json:"subject"`
+	Password_2 password.HashString `json:"password_2"`
 }
 
 func (q *Queries) changeUserPassword(ctx context.Context, arg changeUserPasswordParams) (int64, error) {
@@ -233,11 +252,11 @@ LIMIT 1
 `
 
 type checkLoginRow struct {
-	Subject       string `json:"subject"`
-	Password      string `json:"password"`
-	Column3       int64  `json:"column_3"`
-	Email         string `json:"email"`
-	EmailVerified int64  `json:"email_verified"`
+	Subject       string              `json:"subject"`
+	Password      password.HashString `json:"password"`
+	Column3       int64               `json:"column_3"`
+	Email         string              `json:"email"`
+	EmailVerified bool                `json:"email_verified"`
 }
 
 func (q *Queries) checkLogin(ctx context.Context, username string) (checkLoginRow, error) {
@@ -259,9 +278,9 @@ FROM users
 WHERE subject = ?
 `
 
-func (q *Queries) getUserPassword(ctx context.Context, subject string) (string, error) {
+func (q *Queries) getUserPassword(ctx context.Context, subject string) (password.HashString, error) {
 	row := q.db.QueryRowContext(ctx, getUserPassword, subject)
-	var password string
+	var password password.HashString
 	err := row.Scan(&password)
 	return password, err
 }

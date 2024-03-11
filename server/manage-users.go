@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/database/types"
 	"github.com/1f349/tulip/pages"
 	"github.com/emersion/go-message/mail"
 	"github.com/google/uuid"
@@ -27,9 +28,9 @@ func (h *HttpServer) ManageUsersGet(rw http.ResponseWriter, req *http.Request, _
 		}
 	}
 
-	var role database.UserRole
+	var role types.UserRole
 	var userList []database.User
-	if h.DbTx(rw, func(tx *database.Tx) (err error) {
+	if h.DbTx(rw, func(tx *database.Queries) (err error) {
 		role, err = tx.GetUserRole(auth.ID)
 		if err != nil {
 			return
@@ -39,7 +40,7 @@ func (h *HttpServer) ManageUsersGet(rw http.ResponseWriter, req *http.Request, _
 	}) {
 		return
 	}
-	if role != database.RoleAdmin {
+	if role != types.RoleAdmin {
 		http.Error(rw, "403 Forbidden", http.StatusForbidden)
 		return
 	}
@@ -76,14 +77,14 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 		return
 	}
 
-	var role database.UserRole
-	if h.DbTx(rw, func(tx *database.Tx) (err error) {
+	var role types.UserRole
+	if h.DbTx(rw, func(tx *database.Queries) (err error) {
 		role, err = tx.GetUserRole(auth.ID)
 		return
 	}) {
 		return
 	}
-	if role != database.RoleAdmin {
+	if role != types.RoleAdmin {
 		http.Error(rw, "400 Bad Request: Only admin users can manage users", http.StatusBadRequest)
 		return
 	}
@@ -116,7 +117,7 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 		addrDomain := address.Address[n+1:]
 
 		var userSub uuid.UUID
-		if h.DbTx(rw, func(tx *database.Tx) (err error) {
+		if h.DbTx(rw, func(tx *database.Queries) (err error) {
 			userSub, err = tx.InsertUser(name, username, "", email, addrDomain == h.conf.Namespace, newRole, active)
 			return err
 		}) {
@@ -136,7 +137,7 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 			return
 		}
 	case "edit":
-		if h.DbTx(rw, func(tx *database.Tx) error {
+		if h.DbTx(rw, func(tx *database.Queries) error {
 			sub := req.Form.Get("subject")
 			return tx.UpdateUser(sub, newRole, active)
 		}) {
@@ -151,12 +152,12 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 	http.Redirect(rw, req, redirectUrl.String(), http.StatusFound)
 }
 
-func parseRoleValue(role string) (database.UserRole, error) {
+func parseRoleValue(role string) (types.UserRole, error) {
 	switch role {
 	case "member":
-		return database.RoleMember, nil
+		return types.RoleMember, nil
 	case "admin":
-		return database.RoleAdmin, nil
+		return types.RoleAdmin, nil
 	}
 	return 0, errors.New("invalid role value")
 }

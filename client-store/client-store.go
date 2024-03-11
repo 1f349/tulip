@@ -7,20 +7,16 @@ import (
 )
 
 type ClientStore struct {
-	db *database.DB
+	db *database.Queries
 }
 
 var _ oauth2.ClientStore = &ClientStore{}
 
-func New(db *database.DB) *ClientStore {
+func New(db *database.Queries) *ClientStore {
 	return &ClientStore{db: db}
 }
 
 func (c *ClientStore) GetByID(ctx context.Context, id string) (oauth2.ClientInfo, error) {
-	tx, err := c.db.BeginCtx(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	return tx.GetClientInfo(id)
+	a, err := c.db.GetClientInfo(ctx, id)
+	return &a, err
 }

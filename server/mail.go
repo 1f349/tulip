@@ -18,7 +18,7 @@ func (h *HttpServer) MailVerify(rw http.ResponseWriter, _ *http.Request, params 
 		http.Error(rw, "Invalid email verification code", http.StatusBadRequest)
 		return
 	}
-	if h.DbTx(rw, func(tx *database.Tx) error {
+	if h.DbTx(rw, func(tx *database.Queries) error {
 		return tx.VerifyUserEmail(userSub)
 	}) {
 		return
@@ -75,7 +75,7 @@ func (h *HttpServer) MailPasswordPost(rw http.ResponseWriter, req *http.Request,
 	h.mailLinkCache.Delete(k)
 
 	// reset password database call
-	if h.DbTx(rw, func(tx *database.Tx) error {
+	if h.DbTx(rw, func(tx *database.Queries) error {
 		return tx.UserResetPassword(userSub, pw)
 	}) {
 		return
@@ -94,12 +94,12 @@ func (h *HttpServer) MailDelete(rw http.ResponseWriter, _ *http.Request, params 
 		return
 	}
 	var userInfo *database.User
-	if h.DbTx(rw, func(tx *database.Tx) (err error) {
+	if h.DbTx(rw, func(tx *database.Queries) (err error) {
 		userInfo, err = tx.GetUser(userSub)
 		if err != nil {
 			return
 		}
-		return tx.UpdateUser(userSub, database.RoleToDelete, false)
+		return tx.UpdateUser(userSub, types.RoleToDelete, false)
 	}) {
 		return
 	}

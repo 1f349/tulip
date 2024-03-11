@@ -118,7 +118,7 @@ func genHmacKey() []byte {
 	return a
 }
 
-func checkDbHasUser(db *database.DB) error {
+func checkDbHasUser(db *database.Queries) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
@@ -126,7 +126,7 @@ func checkDbHasUser(db *database.DB) error {
 	defer tx.Rollback()
 	if err := tx.HasUser(); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			_, err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost", false, database.RoleAdmin, false)
+			_, err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost", false, types.RoleAdmin, false)
 			if err != nil {
 				return fmt.Errorf("failed to add user: %w", err)
 			}
