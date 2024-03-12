@@ -117,6 +117,24 @@ func (q *Queries) InsertClientApp(ctx context.Context, arg InsertClientAppParams
 	return err
 }
 
+const resetClientAppSecret = `-- name: ResetClientAppSecret :exec
+UPDATE client_store
+SET secret = ?
+WHERE subject = ?
+  AND owner = ?
+`
+
+type ResetClientAppSecretParams struct {
+	Secret  string `json:"secret"`
+	Subject string `json:"subject"`
+	Owner   string `json:"owner"`
+}
+
+func (q *Queries) ResetClientAppSecret(ctx context.Context, arg ResetClientAppSecretParams) error {
+	_, err := q.db.ExecContext(ctx, resetClientAppSecret, arg.Secret, arg.Subject, arg.Owner)
+	return err
+}
+
 const updateClientApp = `-- name: UpdateClientApp :exec
 UPDATE client_store
 SET name   = ?,
@@ -148,23 +166,5 @@ func (q *Queries) UpdateClientApp(ctx context.Context, arg UpdateClientAppParams
 		arg.Subject,
 		arg.Owner,
 	)
-	return err
-}
-
-const resetClientAppSecret = `-- name: resetClientAppSecret :exec
-UPDATE client_store
-SET secret = ?
-WHERE subject = ?
-  AND owner = ?
-`
-
-type resetClientAppSecretParams struct {
-	Secret  string `json:"secret"`
-	Subject string `json:"subject"`
-	Owner   string `json:"owner"`
-}
-
-func (q *Queries) resetClientAppSecret(ctx context.Context, arg resetClientAppSecretParams) error {
-	_, err := q.db.ExecContext(ctx, resetClientAppSecret, arg.Secret, arg.Subject, arg.Owner)
 	return err
 }

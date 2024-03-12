@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/pages"
@@ -45,15 +46,18 @@ func (h *HttpServer) LoginOtpPost(rw http.ResponseWriter, req *http.Request, _ h
 
 func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub, code string) bool {
 	var hasOtp bool
+	var otpRow database.GetOtpRow
 	var secret string
-	var digits int
+	var digits int64
 	if h.DbTx(rw, func(tx *database.Queries) (err error) {
-		hasOtp, err = tx.HasTwoFactor(sub)
+		hasOtp, err = tx.HasOtp(context.Background(), sub)
 		if err != nil {
 			return
 		}
 		if hasOtp {
-			secret, digits, err = tx.GetTwoFactor(sub)
+			otpRow, err = tx.GetOtp(context.Background(), sub)
+			secret = otpRow.Secret
+			digits = otpRow.Digits
 		}
 		return
 	}) {
@@ -61,7 +65,7 @@ func (h *HttpServer) fetchAndValidateOtp(rw http.ResponseWriter, sub, code strin
 	}
 
 	if hasOtp {
-		totp := gotp.NewTOTP(secret, digits, 30, nil)
+		totp := gotp.NewTOTP(secret, int(digits), 30, nil)
 		if !verifyTotp(totp, code) {
 			http.Error(rw, "400 Bad Request: Invalid OTP code", http.StatusBadRequest)
 			return true
@@ -87,7 +91,11 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 		}
 
 		if h.DbTx(rw, func(tx *database.Queries) error {
-			return tx.SetTwoFactor(auth.ID, "", 0)
+			return tx.SetOtp(req.Context(), database.SetOtpParams{
+				Subject: auth.ID,
+				Secret:  "",
+				Digits:  0,
+			})
 		}) {
 			return
 		}
@@ -120,7 +128,7 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 		var email string
 		if h.DbTx(rw, func(tx *database.Queries) error {
 			var err error
-			email, err = tx.GetUserEmail(auth.ID)
+			email, err = tx.GetUserEmail(req.Context(), auth.ID)
 			return err
 		}) {
 			return
@@ -168,7 +176,11 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 	}
 
 	if h.DbTx(rw, func(tx *database.Queries) error {
-		return tx.SetTwoFactor(auth.ID, secret, digits)
+		return tx.SetOtp(req.Context(), database.SetOtpParams{
+			Subject: auth.ID,
+			Secret:  secret,
+			Digits:  int64(digits),
+		})
 	}) {
 		return
 	}

@@ -14,31 +14,31 @@ import (
 	"github.com/1f349/tulip/password"
 )
 
-const deleteTwoFactor = `-- name: DeleteTwoFactor :exec
+const deleteOtp = `-- name: DeleteOtp :exec
 DELETE
 FROM otp
 WHERE otp.subject = ?
 `
 
-func (q *Queries) DeleteTwoFactor(ctx context.Context, subject string) error {
-	_, err := q.db.ExecContext(ctx, deleteTwoFactor, subject)
+func (q *Queries) DeleteOtp(ctx context.Context, subject string) error {
+	_, err := q.db.ExecContext(ctx, deleteOtp, subject)
 	return err
 }
 
-const getTwoFactor = `-- name: GetTwoFactor :one
+const getOtp = `-- name: GetOtp :one
 SELECT secret, digits
 FROM otp
 WHERE subject = ?
 `
 
-type GetTwoFactorRow struct {
+type GetOtpRow struct {
 	Secret string `json:"secret"`
 	Digits int64  `json:"digits"`
 }
 
-func (q *Queries) GetTwoFactor(ctx context.Context, subject string) (GetTwoFactorRow, error) {
-	row := q.db.QueryRowContext(ctx, getTwoFactor, subject)
-	var i GetTwoFactorRow
+func (q *Queries) GetOtp(ctx context.Context, subject string) (GetOtpRow, error) {
+	row := q.db.QueryRowContext(ctx, getOtp, subject)
+	var i GetOtpRow
 	err := row.Scan(&i.Secret, &i.Digits)
 	return i, err
 }
@@ -87,6 +87,19 @@ func (q *Queries) GetUserDisplayName(ctx context.Context, subject string) (strin
 	return name, err
 }
 
+const getUserEmail = `-- name: GetUserEmail :one
+SELECT email
+FROM users
+WHERE subject = ?
+`
+
+func (q *Queries) GetUserEmail(ctx context.Context, subject string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserEmail, subject)
+	var email string
+	err := row.Scan(&email)
+	return email, err
+}
+
 const getUserRole = `-- name: GetUserRole :one
 SELECT role
 FROM users
@@ -100,19 +113,19 @@ func (q *Queries) GetUserRole(ctx context.Context, subject string) (types.UserRo
 	return role, err
 }
 
-const hasTwoFactor = `-- name: HasTwoFactor :one
-SELECT cast(EXISTS(SELECT 1 FROM otp WHERE subject = ?) AS BOOLEAN)
+const hasOtp = `-- name: HasOtp :one
+SELECT CAST(EXISTS(SELECT 1 FROM otp WHERE subject = ?) AS BOOLEAN)
 `
 
-func (q *Queries) HasTwoFactor(ctx context.Context, subject string) (bool, error) {
-	row := q.db.QueryRowContext(ctx, hasTwoFactor, subject)
+func (q *Queries) HasOtp(ctx context.Context, subject string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasOtp, subject)
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
 }
 
 const hasUser = `-- name: HasUser :one
-SELECT cast(count(subject) AS BOOLEAN) AS hasUser
+SELECT CAST(count(subject) AS BOOLEAN) AS hasUser
 FROM users
 `
 
@@ -123,7 +136,7 @@ func (q *Queries) HasUser(ctx context.Context) (bool, error) {
 	return hasuser, err
 }
 
-const modifyUser = `-- name: ModifyUser :execrows
+const modifyUser = `-- name: ModifyUser :exec
 UPDATE users
 SET name      = ?,
     picture   = ?,
@@ -148,8 +161,8 @@ type ModifyUserParams struct {
 	Subject   string            `json:"subject"`
 }
 
-func (q *Queries) ModifyUser(ctx context.Context, arg ModifyUserParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, modifyUser,
+func (q *Queries) ModifyUser(ctx context.Context, arg ModifyUserParams) error {
+	_, err := q.db.ExecContext(ctx, modifyUser,
 		arg.Name,
 		arg.Picture,
 		arg.Website,
@@ -160,27 +173,24 @@ func (q *Queries) ModifyUser(ctx context.Context, arg ModifyUserParams) (int64, 
 		arg.UpdatedAt,
 		arg.Subject,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return err
 }
 
-const setTwoFactor = `-- name: SetTwoFactor :exec
+const setOtp = `-- name: SetOtp :exec
 INSERT OR
 REPLACE
 INTO otp (subject, secret, digits)
 VALUES (?, ?, ?)
 `
 
-type SetTwoFactorParams struct {
+type SetOtpParams struct {
 	Subject string `json:"subject"`
 	Secret  string `json:"secret"`
 	Digits  int64  `json:"digits"`
 }
 
-func (q *Queries) SetTwoFactor(ctx context.Context, arg SetTwoFactorParams) error {
-	_, err := q.db.ExecContext(ctx, setTwoFactor, arg.Subject, arg.Secret, arg.Digits)
+func (q *Queries) SetOtp(ctx context.Context, arg SetOtpParams) error {
+	_, err := q.db.ExecContext(ctx, setOtp, arg.Subject, arg.Secret, arg.Digits)
 	return err
 }
 
@@ -216,7 +226,7 @@ func (q *Queries) addUser(ctx context.Context, arg addUserParams) error {
 	return err
 }
 
-const changeUserPassword = `-- name: changeUserPassword :execrows
+const changeUserPassword = `-- name: changeUserPassword :exec
 UPDATE users
 SET password   = ?,
     updated_at = ?
@@ -231,21 +241,18 @@ type changeUserPasswordParams struct {
 	Password_2 password.HashString `json:"password_2"`
 }
 
-func (q *Queries) changeUserPassword(ctx context.Context, arg changeUserPasswordParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, changeUserPassword,
+func (q *Queries) changeUserPassword(ctx context.Context, arg changeUserPasswordParams) error {
+	_, err := q.db.ExecContext(ctx, changeUserPassword,
 		arg.Password,
 		arg.UpdatedAt,
 		arg.Subject,
 		arg.Password_2,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return err
 }
 
 const checkLogin = `-- name: checkLogin :one
-SELECT subject, password, cast(EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) AS BOOLEAN) as has_otp, email, email_verified
+SELECT subject, name, password, CAST(EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) AS BOOLEAN) AS has_otp, email, email_verified
 FROM users
 WHERE username = ?
 LIMIT 1
@@ -253,6 +260,7 @@ LIMIT 1
 
 type checkLoginRow struct {
 	Subject       string              `json:"subject"`
+	Name          string              `json:"name"`
 	Password      password.HashString `json:"password"`
 	HasOtp        bool                `json:"has_otp"`
 	Email         string              `json:"email"`
@@ -264,6 +272,7 @@ func (q *Queries) checkLogin(ctx context.Context, username string) (checkLoginRo
 	var i checkLoginRow
 	err := row.Scan(
 		&i.Subject,
+		&i.Name,
 		&i.Password,
 		&i.HasOtp,
 		&i.Email,

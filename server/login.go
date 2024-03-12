@@ -58,7 +58,7 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 	pw := req.FormValue("password")
 
 	// flags returned from database call
-	var userInfo *database.User
+	var userInfo database.CheckLoginResult
 	var loginMismatch byte
 	var hasOtp bool
 
@@ -74,8 +74,8 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 		}
 
 		userInfo = loginUser
-		hasOtp = hasOtpRaw
-		if !hasVerifiedEmail {
+		hasOtp = loginUser.HasOtp
+		if !loginUser.EmailVerified {
 			loginMismatch = 2
 		}
 		return nil
@@ -100,7 +100,7 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 			}
 
 			u := uuid.NewString()
-			h.mailLinkCache.Set(mailLinkKey{mailLinkVerifyEmail, u}, userInfo.Sub, time.Now().Add(10*time.Minute))
+			h.mailLinkCache.Set(mailLinkKey{mailLinkVerifyEmail, u}, userInfo.Subject, time.Now().Add(10*time.Minute))
 
 			// try to send email
 			err = h.conf.Mail.SendEmailTemplate("mail-verify", "Verify Email", userInfo.Name, address, map[string]any{
@@ -122,7 +122,7 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 
 	// only continues if the above tx succeeds
 	auth = UserAuth{
-		ID:      userInfo.Sub,
+		ID:      userInfo.Subject,
 		NeedOtp: hasOtp,
 	}
 
@@ -177,7 +177,7 @@ func (h *HttpServer) LoginResetPasswordPost(rw http.ResponseWriter, req *http.Re
 
 	var emailExists bool
 	if h.DbTx(rw, func(tx *database.Queries) (err error) {
-		emailExists, err = tx.UserEmailExists(email)
+		emailExists, err = tx.UserEmailExists(req.Context(), email)
 		return err
 	}) {
 		return
@@ -190,4 +190,6 @@ func (h *HttpServer) LoginResetPasswordPost(rw http.ResponseWriter, req *http.Re
 
 func (h *HttpServer) possiblySendPasswordResetEmail(email string, exists bool) {
 	// TODO(Melon): Send reset password email template
+	_ = email
+	_ = exists
 }

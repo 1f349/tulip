@@ -76,7 +76,7 @@ func (h *HttpServer) EditPost(rw http.ResponseWriter, req *http.Request, _ httpr
 		Subject:   auth.ID,
 	}
 	if h.DbTx(rw, func(tx *database.Queries) error {
-		if _, err := tx.ModifyUser(req.Context(), m); err != nil {
+		if err := tx.ModifyUser(req.Context(), m); err != nil {
 			return fmt.Errorf("failed to modify user info: %w", err)
 		}
 		return nil

@@ -2,13 +2,14 @@ package server
 
 import (
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/database/types"
 	"github.com/1f349/tulip/pages"
 	"github.com/emersion/go-message/mail"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
 )
 
-func (h *HttpServer) MailVerify(rw http.ResponseWriter, _ *http.Request, params httprouter.Params) {
+func (h *HttpServer) MailVerify(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	code := params.ByName("code")
 
 	k := mailLinkKey{mailLinkVerifyEmail, code}
@@ -19,7 +20,7 @@ func (h *HttpServer) MailVerify(rw http.ResponseWriter, _ *http.Request, params 
 		return
 	}
 	if h.DbTx(rw, func(tx *database.Queries) error {
-		return tx.VerifyUserEmail(userSub)
+		return tx.VerifyUserEmail(req.Context(), userSub)
 	}) {
 		return
 	}
@@ -76,7 +77,7 @@ func (h *HttpServer) MailPasswordPost(rw http.ResponseWriter, req *http.Request,
 
 	// reset password database call
 	if h.DbTx(rw, func(tx *database.Queries) error {
-		return tx.UserResetPassword(userSub, pw)
+		return tx.ChangePassword(req.Context(), userSub, pw)
 	}) {
 		return
 	}
@@ -84,7 +85,7 @@ func (h *HttpServer) MailPasswordPost(rw http.ResponseWriter, req *http.Request,
 	http.Error(rw, "Reset password successfully, you can login now.", http.StatusOK)
 }
 
-func (h *HttpServer) MailDelete(rw http.ResponseWriter, _ *http.Request, params httprouter.Params) {
+func (h *HttpServer) MailDelete(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	code := params.ByName("code")
 
 	k := mailLinkKey{mailLinkDelete, code}
@@ -93,13 +94,17 @@ func (h *HttpServer) MailDelete(rw http.ResponseWriter, _ *http.Request, params 
 		http.Error(rw, "Invalid email delete code", http.StatusBadRequest)
 		return
 	}
-	var userInfo *database.User
+	var userInfo database.User
 	if h.DbTx(rw, func(tx *database.Queries) (err error) {
-		userInfo, err = tx.GetUser(userSub)
+		userInfo, err = tx.GetUser(req.Context(), userSub)
 		if err != nil {
 			return
 		}
-		return tx.UpdateUser(userSub, types.RoleToDelete, false)
+		return tx.UpdateUserRole(req.Context(), database.UpdateUserRoleParams{
+			Active:  false,
+			Role:    types.RoleToDelete,
+			Subject: userSub,
+		})
 	}) {
 		return
 	}

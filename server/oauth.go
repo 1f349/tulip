@@ -77,17 +77,14 @@ func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request
 			}
 		}
 
-		var user *database.User
+		var user string
 		var hasOtp bool
 		if h.DbTx(rw, func(tx *database.Queries) (err error) {
-			user, err = tx.GetUserDisplayName(auth.ID)
+			user, err = tx.GetUserDisplayName(req.Context(), auth.ID)
 			if err != nil {
 				return
 			}
-			hasOtp, err = tx.HasTwoFactor(auth.ID)
-			if err != nil {
-				return
-			}
+			hasOtp, err = tx.HasOtp(req.Context(), auth.ID)
 			return
 		}) {
 			return

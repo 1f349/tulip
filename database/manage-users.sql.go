@@ -90,14 +90,14 @@ func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) 
 }
 
 const userEmailExists = `-- name: UserEmailExists :one
-SELECT EXISTS(SELECT 1 FROM users WHERE email = ? AND email_verified = 1)
+SELECT CAST(EXISTS(SELECT 1 FROM users WHERE email = ? AND email_verified = 1) AS BOOLEAN) AS email_exists
 `
 
-func (q *Queries) UserEmailExists(ctx context.Context, email string) (int64, error) {
+func (q *Queries) UserEmailExists(ctx context.Context, email string) (bool, error) {
 	row := q.db.QueryRowContext(ctx, userEmailExists, email)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
+	var email_exists bool
+	err := row.Scan(&email_exists)
+	return email_exists, err
 }
 
 const verifyUserEmail = `-- name: VerifyUserEmail :exec

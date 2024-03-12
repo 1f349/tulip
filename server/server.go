@@ -191,7 +191,7 @@ func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *htt
 			return
 		}
 
-		var userData database.GetUserRow
+		var userData database.User
 
 		if hs.DbTx(rw, func(tx *database.Queries) (err error) {
 			userData, err = tx.GetUser(req.Context(), userId)
@@ -212,21 +212,21 @@ func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *htt
 		}
 		if claims["profile"] {
 			m["profile"] = conf.BaseUrl + "/user/" + userData.Username
-			m["picture"] = userData.Picture.String()
-			m["website"] = userData.Website.String()
+			m["picture"] = userData.Picture
+			m["website"] = userData.Website
 		}
 		if claims["email"] {
 			m["email"] = userData.Email
 			m["email_verified"] = userData.EmailVerified
 		}
-		if claims["birthdate"] {
-			m["birthdate"] = userData.Birthdate.String()
+		if claims["birthdate"] && userData.Birthdate.Valid {
+			m["birthdate"] = userData.Birthdate.Time.String()
 		}
 		if claims["age"] {
-			m["age"] = CalculateAge(userData.Birthdate.Time.In(userData.ZoneInfo.Location))
+			m["age"] = CalculateAge(userData.Birthdate.Time.In(userData.Zoneinfo.Location))
 		}
 		if claims["zoneinfo"] {
-			m["zoneinfo"] = userData.ZoneInfo.Location.String()
+			m["zoneinfo"] = userData.Zoneinfo.Location.String()
 		}
 		if claims["locale"] {
 			m["locale"] = userData.Locale.Tag.String()

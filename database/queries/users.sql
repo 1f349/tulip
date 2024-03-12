@@ -1,5 +1,5 @@
 -- name: HasUser :one
-SELECT cast(count(subject) AS BOOLEAN) AS hasUser
+SELECT CAST(count(subject) AS BOOLEAN) AS hasUser
 FROM users;
 
 -- name: addUser :exec
@@ -7,7 +7,7 @@ INSERT INTO users (subject, name, username, password, email, email_verified, rol
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: checkLogin :one
-SELECT subject, password, cast(EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) AS BOOLEAN) as has_otp, email, email_verified
+SELECT subject, name, password, CAST(EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) AS BOOLEAN) AS has_otp, email, email_verified
 FROM users
 WHERE username = ?
 LIMIT 1;
@@ -33,14 +33,14 @@ SELECT password
 FROM users
 WHERE subject = ?;
 
--- name: changeUserPassword :execrows
+-- name: changeUserPassword :exec
 UPDATE users
 SET password   = ?,
     updated_at = ?
 WHERE subject = ?
   AND password = ?;
 
--- name: ModifyUser :execrows
+-- name: ModifyUser :exec
 UPDATE users
 SET name      = ?,
     picture   = ?,
@@ -52,21 +52,26 @@ SET name      = ?,
     updated_at=?
 WHERE subject = ?;
 
--- name: SetTwoFactor :exec
+-- name: SetOtp :exec
 INSERT OR
 REPLACE
 INTO otp (subject, secret, digits)
 VALUES (?, ?, ?);
 
--- name: DeleteTwoFactor :exec
+-- name: DeleteOtp :exec
 DELETE
 FROM otp
 WHERE otp.subject = ?;
 
--- name: GetTwoFactor :one
+-- name: GetOtp :one
 SELECT secret, digits
 FROM otp
 WHERE subject = ?;
 
--- name: HasTwoFactor :one
-SELECT cast(EXISTS(SELECT 1 FROM otp WHERE subject = ?) AS BOOLEAN);
+-- name: HasOtp :one
+SELECT CAST(EXISTS(SELECT 1 FROM otp WHERE subject = ?) AS BOOLEAN);
+
+-- name: GetUserEmail :one
+SELECT email
+FROM users
+WHERE subject = ?;

@@ -40,7 +40,8 @@ func (q *Queries) AddUser(ctx context.Context, arg AddUserParams) (string, error
 
 type CheckLoginResult struct {
 	Subject       string `json:"subject"`
-	HasTwoFactor  bool   `json:"hasTwoFactor"`
+	Name          string `json:"name"`
+	HasOtp        bool   `json:"hasTwoFactor"`
 	Email         string `json:"email"`
 	EmailVerified bool   `json:"email_verified"`
 }
@@ -56,8 +57,26 @@ func (q *Queries) CheckLogin(ctx context.Context, un, pw string) (CheckLoginResu
 	}
 	return CheckLoginResult{
 		Subject:       login.Subject,
-		HasTwoFactor:  login.HasOtp,
+		Name:          login.Name,
+		HasOtp:        login.HasOtp,
 		Email:         login.Email,
 		EmailVerified: login.EmailVerified,
 	}, nil
+}
+
+func (q *Queries) ChangePassword(ctx context.Context, subject, newPw string) error {
+	userPassword, err := q.getUserPassword(ctx, subject)
+	if err != nil {
+		return err
+	}
+	newPwHash, err := password.HashPassword(newPw)
+	if err != nil {
+		return err
+	}
+	return q.changeUserPassword(ctx, changeUserPasswordParams{
+		Password:   newPwHash,
+		UpdatedAt:  time.Now(),
+		Subject:    subject,
+		Password_2: userPassword,
+	})
 }

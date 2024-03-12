@@ -29,17 +29,18 @@ func (h *HttpServer) ManageUsersGet(rw http.ResponseWriter, req *http.Request, _
 	}
 
 	var role types.UserRole
-	var userList []database.User
+	var userList []database.GetUserListRow
 	if h.DbTx(rw, func(tx *database.Queries) (err error) {
-		role, err = tx.GetUserRole(auth.ID)
+		role, err = tx.GetUserRole(req.Context(), auth.ID)
 		if err != nil {
 			return
 		}
-		userList, err = tx.GetUserList(offset)
+		userList, err = tx.GetUserList(req.Context(), int64(offset))
 		return
 	}) {
 		return
 	}
+
 	if role != types.RoleAdmin {
 		http.Error(rw, "403 Forbidden", http.StatusForbidden)
 		return
@@ -55,7 +56,7 @@ func (h *HttpServer) ManageUsersGet(rw http.ResponseWriter, req *http.Request, _
 	}
 	if q.Has("edit") {
 		for _, i := range userList {
-			if i.Sub == q.Get("edit") {
+			if i.Subject == q.Get("edit") {
 				m["Edit"] = i
 				goto validEdit
 			}
@@ -79,7 +80,7 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 
 	var role types.UserRole
 	if h.DbTx(rw, func(tx *database.Queries) (err error) {
-		role, err = tx.GetUserRole(auth.ID)
+		role, err = tx.GetUserRole(req.Context(), auth.ID)
 		return
 	}) {
 		return
@@ -116,17 +117,26 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 		}
 		addrDomain := address.Address[n+1:]
 
-		var userSub uuid.UUID
+		var userSub string
 		if h.DbTx(rw, func(tx *database.Queries) (err error) {
-			userSub, err = tx.InsertUser(name, username, "", email, addrDomain == h.conf.Namespace, newRole, active)
+			userSub, err = tx.AddUser(req.Context(), database.AddUserParams{
+				Name:          name,
+				Username:      username,
+				Password:      "",
+				Email:         email,
+				EmailVerified: addrDomain == h.conf.Namespace,
+				Role:          newRole,
+				UpdatedAt:     time.Now(),
+				Active:        active,
+			})
 			return err
 		}) {
 			return
 		}
 
 		u, u2 := uuid.NewString(), uuid.NewString()
-		h.mailLinkCache.Set(mailLinkKey{mailLinkResetPassword, u}, userSub.String(), time.Now().Add(10*time.Minute))
-		h.mailLinkCache.Set(mailLinkKey{mailLinkDelete, u2}, userSub.String(), time.Now().Add(10*time.Minute))
+		h.mailLinkCache.Set(mailLinkKey{mailLinkResetPassword, u}, userSub, time.Now().Add(10*time.Minute))
+		h.mailLinkCache.Set(mailLinkKey{mailLinkDelete, u2}, userSub, time.Now().Add(10*time.Minute))
 
 		err = h.conf.Mail.SendEmailTemplate("mail-register-admin", "Register", name, address, map[string]any{
 			"RegisterUrl": h.conf.BaseUrl + "/mail/password/" + u,
@@ -139,7 +149,11 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 	case "edit":
 		if h.DbTx(rw, func(tx *database.Queries) error {
 			sub := req.Form.Get("subject")
-			return tx.UpdateUser(sub, newRole, active)
+			return tx.UpdateUserRole(req.Context(), database.UpdateUserRoleParams{
+				Active:  active,
+				Role:    newRole,
+				Subject: sub,
+			})
 		}) {
 			return
 		}

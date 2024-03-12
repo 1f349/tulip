@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"github.com/1f349/mjwt"
+	"github.com/1f349/tulip"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/database/types"
 	"github.com/1f349/tulip/mail/templates"
 	"github.com/1f349/tulip/pages"
 	"github.com/1f349/tulip/server"
@@ -20,6 +20,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 type serveCmd struct{ configPath string }
@@ -78,7 +79,7 @@ func normalLoad(startUp server.Conf, wd string) {
 		log.Fatal("[Tulip] Failed to open signing key file:", err)
 	}
 
-	db, err := database.Open(filepath.Join(wd, "tulip.db.sqlite"))
+	db, err := tulip.InitDB(filepath.Join(wd, "tulip.db.sqlite"))
 	if err != nil {
 		log.Fatal("[Tulip] Failed to open database:", err)
 	}
@@ -102,42 +103,30 @@ func normalLoad(startUp server.Conf, wd string) {
 	exit_reload.ExitReload("Tulip", func() {}, func() {
 		// stop http server
 		_ = srv.Close()
-		_ = db.Close()
 	})
 }
 
-func genHmacKey() []byte {
-	a := make([]byte, 32)
-	n, err := rand.Reader.Read(a)
-	if err != nil {
-		log.Fatal("[Tulip] Failed to generate HMAC key")
-	}
-	if n != 32 {
-		log.Fatal("[Tulip] Failed to generate HMAC key")
-	}
-	return a
-}
-
 func checkDbHasUser(db *database.Queries) error {
-	tx, err := db.Begin()
+	value, err := db.HasUser(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
+		return err
 	}
-	defer tx.Rollback()
-	if err := tx.HasUser(); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			_, err := tx.InsertUser("Admin", "admin", "admin", "admin@localhost", false, types.RoleAdmin, false)
-			if err != nil {
-				return fmt.Errorf("failed to add user: %w", err)
-			}
-			if err := tx.Commit(); err != nil {
-				return fmt.Errorf("failed to commit transaction: %w", err)
-			}
-			// continue normal operation now
-			return nil
-		} else {
-			return fmt.Errorf("failed to check if table has a user: %w", err)
+
+	if !value {
+		_, err := db.AddUser(context.Background(), database.AddUserParams{
+			Name:          "Admin",
+			Username:      "admin",
+			Password:      "admin",
+			Email:         "admin@localhost",
+			EmailVerified: false,
+			Role:          types.RoleAdmin,
+			UpdatedAt:     time.Now(),
+			Active:        false,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to add user: %w", err)
 		}
+		// continue normal operation now
 	}
 	return nil
 }

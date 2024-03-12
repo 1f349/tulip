@@ -25,7 +25,7 @@ SET name   = ?,
 WHERE subject = ?
   AND owner = ?;
 
--- name: resetClientAppSecret :exec
+-- name: ResetClientAppSecret :exec
 UPDATE client_store
 SET secret = ?
 WHERE subject = ?

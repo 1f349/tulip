@@ -23,4 +23,4 @@ SET email_verified = 1
 WHERE subject = ?;
 
 -- name: UserEmailExists :one
-SELECT EXISTS(SELECT 1 FROM users WHERE email = ? AND email_verified = 1);
+SELECT CAST(EXISTS(SELECT 1 FROM users WHERE email = ? AND email_verified = 1) AS BOOLEAN) AS email_exists;

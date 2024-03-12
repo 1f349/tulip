@@ -2,8 +2,10 @@ package server
 
 import (
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/database/types"
 	"github.com/1f349/tulip/pages"
-	"github.com/go-oauth2/oauth2/v4"
+	"github.com/1f349/tulip/password"
+	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"net/url"
@@ -23,13 +25,17 @@ func (h *HttpServer) ManageAppsGet(rw http.ResponseWriter, req *http.Request, _ 
 	}
 
 	var role types.UserRole
-	var appList []database.ClientStore
+	var appList []database.GetAppListRow
 	if h.DbTx(rw, func(tx *database.Queries) (err error) {
-		role, err = tx.GetUserRole(auth.ID)
+		role, err = tx.GetUserRole(req.Context(), auth.ID)
 		if err != nil {
 			return
 		}
-		appList, err = tx.GetAppList(auth.ID, role == types.RoleAdmin, offset)
+		appList, err = tx.GetAppList(req.Context(), database.GetAppListParams{
+			Owner:   auth.ID,
+			Column2: role == types.RoleAdmin,
+			Offset:  int64(offset),
+		})
 		return
 	}) {
 		return
@@ -45,7 +51,7 @@ func (h *HttpServer) ManageAppsGet(rw http.ResponseWriter, req *http.Request, _ 
 	}
 	if q.Has("edit") {
 		for _, i := range appList {
-			if i.Sub == q.Get("edit") {
+			if i.Subject == q.Get("edit") {
 				m["Edit"] = i
 				goto validEdit
 			}
@@ -78,7 +84,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 	if sso {
 		var role types.UserRole
 		if h.DbTx(rw, func(tx *database.Queries) (err error) {
-			role, err = tx.GetUserRole(auth.ID)
+			role, err = tx.GetUserRole(req.Context(), auth.ID)
 			return
 		}) {
 			return
@@ -92,35 +98,61 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 	switch action {
 	case "create":
 		if h.DbTx(rw, func(tx *database.Queries) error {
-			return tx.InsertClientApp(name, domain, public, sso, active, auth.ID)
+			secret, err := password.GenerateApiSecret(70)
+			if err != nil {
+				return err
+			}
+			return tx.InsertClientApp(req.Context(), database.InsertClientAppParams{
+				Subject: uuid.NewString(),
+				Name:    name,
+				Secret:  secret,
+				Domain:  domain,
+				Owner:   auth.ID,
+				Public:  public,
+				Sso:     sso,
+				Active:  active,
+			})
 		}) {
 			return
 		}
 	case "edit":
 		if h.DbTx(rw, func(tx *database.Queries) error {
-			return tx.UpdateClientApp(req.Form.Get("subject"), auth.ID, name, domain, public, sso, active)
+			return tx.UpdateClientApp(req.Context(), database.UpdateClientAppParams{
+				Name:    name,
+				Domain:  domain,
+				Public:  public,
+				Sso:     sso,
+				Active:  active,
+				Subject: req.FormValue("subject"),
+				Owner:   auth.ID,
+			})
 		}) {
 			return
 		}
 	case "secret":
-		var info oauth2.ClientInfo
+		var info database.ClientStore
 		var secret string
 		if h.DbTx(rw, func(tx *database.Queries) error {
 			sub := req.Form.Get("subject")
-			info, err = tx.GetClientInfo(sub)
+			info, err = tx.GetClientInfo(req.Context(), sub)
 			if err != nil {
 				return err
 			}
-			secret, err = tx.ResetClientAppSecret(sub, auth.ID)
+			secret, err := password.GenerateApiSecret(70)
+			if err != nil {
+				return err
+			}
+			err = tx.ResetClientAppSecret(req.Context(), database.ResetClientAppSecretParams{
+				Secret:  secret,
+				Subject: sub,
+				Owner:   auth.ID,
+			})
 			return err
 		}) {
 			return
 		}
 
-		appName := "Unknown..."
-		if getName, ok := info.(interface{ GetName() string }); ok {
-			appName = getName.GetName()
-		}
+		appName := info.GetName()
 
 		h.ManageAppsGet(rw, &http.Request{
 			URL: &url.URL{

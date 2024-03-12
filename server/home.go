@@ -38,7 +38,7 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 		if err != nil {
 			return fmt.Errorf("failed to get user display name: %w", err)
 		}
-		hasTwoFactor, err = tx.HasTwoFactor(req.Context(), auth.ID)
+		hasTwoFactor, err = tx.HasOtp(req.Context(), auth.ID)
 		if err != nil {
 			return fmt.Errorf("failed to get user two factor state: %w", err)
 		}
