@@ -17,6 +17,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/google/subcommands v1.2.0
 	github.com/google/uuid v1.6.0
+	github.com/hardfinhq/go-date v1.20240228.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e

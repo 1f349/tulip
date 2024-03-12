@@ -7,11 +7,11 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/1f349/tulip/database/types"
 	"github.com/1f349/tulip/password"
+	"github.com/hardfinhq/go-date"
 )
 
 const deleteOtp = `-- name: DeleteOtp :exec
@@ -154,7 +154,7 @@ type ModifyUserParams struct {
 	Picture   string            `json:"picture"`
 	Website   string            `json:"website"`
 	Pronouns  types.UserPronoun `json:"pronouns"`
-	Birthdate sql.NullTime      `json:"birthdate"`
+	Birthdate date.NullDate     `json:"birthdate"`
 	Zoneinfo  types.UserZone    `json:"zoneinfo"`
 	Locale    types.UserLocale  `json:"locale"`
 	UpdatedAt time.Time         `json:"updated_at"`

@@ -5,11 +5,11 @@
 package database
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/1f349/tulip/database/types"
 	"github.com/1f349/tulip/password"
+	"github.com/hardfinhq/go-date"
 )
 
 type ClientStore struct {
@@ -39,7 +39,7 @@ type User struct {
 	Email         string              `json:"email"`
 	EmailVerified bool                `json:"email_verified"`
 	Pronouns      types.UserPronoun   `json:"pronouns"`
-	Birthdate     sql.NullTime        `json:"birthdate"`
+	Birthdate     date.NullDate       `json:"birthdate"`
 	Zoneinfo      types.UserZone      `json:"zoneinfo"`
 	Locale        types.UserLocale    `json:"locale"`
 	Role          types.UserRole      `json:"role"`

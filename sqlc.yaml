@@ -11,6 +11,8 @@ sql:
         overrides:
           - column: "users.password"
             go_type: "github.com/1f349/tulip/password.HashString"
+          - column: "users.birthdate"
+            go_type: "github.com/hardfinhq/go-date.NullDate"
           - column: "users.role"
             go_type: "github.com/1f349/tulip/database/types.UserRole"
           - column: "users.pronouns"
