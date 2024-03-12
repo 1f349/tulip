@@ -245,7 +245,7 @@ func (q *Queries) changeUserPassword(ctx context.Context, arg changeUserPassword
 }
 
 const checkLogin = `-- name: checkLogin :one
-SELECT subject, password, EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject), email, email_verified
+SELECT subject, password, cast(EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) AS BOOLEAN) as has_otp, email, email_verified
 FROM users
 WHERE username = ?
 LIMIT 1
@@ -254,7 +254,7 @@ LIMIT 1
 type checkLoginRow struct {
 	Subject       string              `json:"subject"`
 	Password      password.HashString `json:"password"`
-	Column3       int64               `json:"column_3"`
+	HasOtp        bool                `json:"has_otp"`
 	Email         string              `json:"email"`
 	EmailVerified bool                `json:"email_verified"`
 }
@@ -265,7 +265,7 @@ func (q *Queries) checkLogin(ctx context.Context, username string) (checkLoginRo
 	err := row.Scan(
 		&i.Subject,
 		&i.Password,
-		&i.Column3,
+		&i.HasOtp,
 		&i.Email,
 		&i.EmailVerified,
 	)

@@ -63,7 +63,7 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 	var hasOtp bool
 
 	if h.DbTx(rw, func(tx *database.Queries) error {
-		loginUser, hasOtpRaw, hasVerifiedEmail, err := tx.CheckLogin(un, pw)
+		loginUser, err := tx.CheckLogin(req.Context(), un, pw)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 				loginMismatch = 1

@@ -7,7 +7,7 @@ INSERT INTO users (subject, name, username, password, email, email_verified, rol
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: checkLogin :one
-SELECT subject, password, EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject), email, email_verified
+SELECT subject, password, cast(EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) AS BOOLEAN) as has_otp, email, email_verified
 FROM users
 WHERE username = ?
 LIMIT 1;

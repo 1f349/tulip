@@ -38,10 +38,26 @@ func (q *Queries) AddUser(ctx context.Context, arg AddUserParams) (string, error
 	return a.Subject, q.addUser(ctx, a)
 }
 
-type CheckLoginRow struct {
-	Subject       string              `json:"subject"`
-	Password      password.HashString `json:"password"`
-	HasTwoFactor  bool                `json:"hasTwoFactor"`
-	Email         string              `json:"email"`
-	EmailVerified bool                `json:"email_verified"`
+type CheckLoginResult struct {
+	Subject       string `json:"subject"`
+	HasTwoFactor  bool   `json:"hasTwoFactor"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+}
+
+func (q *Queries) CheckLogin(ctx context.Context, un, pw string) (CheckLoginResult, error) {
+	login, err := q.checkLogin(ctx, un)
+	if err != nil {
+		return CheckLoginResult{}, err
+	}
+	err = password.CheckPasswordHash(login.Password, pw)
+	if err != nil {
+		return CheckLoginResult{}, err
+	}
+	return CheckLoginResult{
+		Subject:       login.Subject,
+		HasTwoFactor:  login.HasOtp,
+		Email:         login.Email,
+		EmailVerified: login.EmailVerified,
+	}, nil
 }
