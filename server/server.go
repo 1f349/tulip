@@ -220,10 +220,10 @@ func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *htt
 			m["email_verified"] = userData.EmailVerified
 		}
 		if claims["birthdate"] && userData.Birthdate.Valid {
-			m["birthdate"] = userData.Birthdate.Time.String()
+			m["birthdate"] = userData.Birthdate.Date.String()
 		}
 		if claims["age"] {
-			m["age"] = CalculateAge(userData.Birthdate.Time.In(userData.Zoneinfo.Location))
+			m["age"] = CalculateAge(userData.Birthdate.Date.ToTime().In(userData.Zoneinfo.Location))
 		}
 		if claims["zoneinfo"] {
 			m["zoneinfo"] = userData.Zoneinfo.Location.String()

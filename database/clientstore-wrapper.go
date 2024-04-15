@@ -1,11 +1,11 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/1f349/tulip/database/types"
 	"github.com/MrMelon54/pronouns"
 	"github.com/go-oauth2/oauth2/v4"
+	"github.com/hardfinhq/go-date"
 	"golang.org/x/text/language"
 	"net/url"
 	"time"
@@ -16,7 +16,7 @@ type UserPatch struct {
 	Picture   string
 	Website   string
 	Pronouns  types.UserPronoun
-	Birthdate sql.NullTime
+	Birthdate date.NullDate
 	ZoneInfo  types.UserZone
 	Locale    types.UserLocale
 }
@@ -35,10 +35,10 @@ func (u *UserPatch) ParseFromForm(v url.Values) (safeErrs []error) {
 		}
 	}
 	if v.Has("reset_birthdate") || v.Get("birthdate") == "" {
-		u.Birthdate = sql.NullTime{}
+		u.Birthdate = date.NullDate{}
 	} else {
-		u.Birthdate = sql.NullTime{Valid: true}
-		u.Birthdate.Time, err = time.Parse(time.DateOnly, v.Get("birthdate"))
+		u.Birthdate = date.NullDate{Valid: true}
+		u.Birthdate.Date, err = date.FromString(v.Get("birthdate"))
 		if err != nil {
 			safeErrs = append(safeErrs, fmt.Errorf("invalid time selected"))
 		}
