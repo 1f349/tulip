@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/MrMelon54/pronouns"
+	"github.com/mrmelon54/pronouns"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

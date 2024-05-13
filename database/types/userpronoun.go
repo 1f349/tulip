@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/MrMelon54/pronouns"
+	"github.com/mrmelon54/pronouns"
 )
 
 var (

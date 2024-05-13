@@ -3,9 +3,7 @@ package database
 import (
 	"fmt"
 	"github.com/1f349/tulip/database/types"
-	"github.com/MrMelon54/pronouns"
-	"github.com/go-oauth2/oauth2/v4"
-	"github.com/hardfinhq/go-date"
+	"github.com/mrmelon54/pronouns"
 	"golang.org/x/text/language"
 	"net/url"
 	"time"
