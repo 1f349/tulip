@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/1f349/tulip/database"
-	"log"
+	"github.com/1f349/tulip/logger"
 	"net/http"
 )
 
@@ -13,7 +13,7 @@ func (h *HttpServer) DbTx(rw http.ResponseWriter, action func(db *database.Queri
 	err := action(h.db)
 	if err != nil {
 		http.Error(rw, "Database error", http.StatusInternalServerError)
-		log.Println("Database action error:", err)
+		logger.Logger.Warn("Database action error", "err", err)
 		return true
 	}
 

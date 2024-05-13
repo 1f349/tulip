@@ -4,10 +4,10 @@ import (
 	"embed"
 	"errors"
 	"github.com/1f349/overlapfs"
+	"github.com/1f349/tulip/logger"
 	htmlTemplate "html/template"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -46,10 +46,10 @@ func LoadMailTemplates(wd string) (err error) {
 func RenderMailTemplate(wrHtml, wrTxt io.Writer, name string, data any) {
 	err := mailHtmlTemplates.ExecuteTemplate(wrHtml, name+".go.html", data)
 	if err != nil {
-		log.Printf("Failed to render mail html: %s: %s\n", name, err)
+		logger.Logger.Warn("Failed to render mail html", "name", name, "err", err)
 	}
 	err = mailTextTemplates.ExecuteTemplate(wrTxt, name+".go.txt", data)
 	if err != nil {
-		log.Printf("Failed to render mail text: %s: %s\n", name, err)
+		logger.Logger.Warn("Failed to render mail text", "name", name, "err", err)
 	}
 }

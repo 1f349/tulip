@@ -10,6 +10,7 @@ import (
 	"github.com/1f349/tulip"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/database/types"
+	"github.com/1f349/tulip/logger"
 	"github.com/1f349/tulip/mail/templates"
 	"github.com/1f349/tulip/pages"
 	"github.com/1f349/tulip/server"
@@ -17,7 +18,6 @@ import (
 	"github.com/google/subcommands"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mrmelon54/exit-reload"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -40,19 +40,19 @@ func (s *serveCmd) Usage() string {
 }
 
 func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcommands.ExitStatus {
-	log.Println("[Tulip] Starting...")
+	logger.Logger.Info("Starting...")
 
 	if s.configPath == "" {
-		log.Println("[Tulip] Error: config flag is missing")
+		logger.Logger.Error("Config flag is missing")
 		return subcommands.ExitUsageError
 	}
 
 	openConf, err := os.Open(s.configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Println("[Tulip] Error: missing config file")
+			logger.Logger.Error("Missing config file")
 		} else {
-			log.Println("[Tulip] Error: open config file: ", err)
+			logger.Logger.Error("Open config file: ", err)
 		}
 		return subcommands.ExitFailure
 	}
@@ -60,13 +60,13 @@ func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcomm
 	var config server.Conf
 	err = json.NewDecoder(openConf).Decode(&config)
 	if err != nil {
-		log.Println("[Tulip] Error: invalid config file: ", err)
+		logger.Logger.Error("Invalid config file: ", err)
 		return subcommands.ExitFailure
 	}
 
 	configPathAbs, err := filepath.Abs(s.configPath)
 	if err != nil {
-		log.Fatal("[Tulip] Failed to get absolute config path")
+		logger.Logger.Fatal("Failed to get absolute config path")
 	}
 	wd := filepath.Dir(configPathAbs)
 	normalLoad(config, wd)
@@ -76,29 +76,29 @@ func (s *serveCmd) Execute(_ context.Context, _ *flag.FlagSet, _ ...any) subcomm
 func normalLoad(startUp server.Conf, wd string) {
 	signingKey, err := mjwt.NewMJwtSignerFromFileOrCreate(startUp.OtpIssuer, filepath.Join(wd, "tulip.key.pem"), rand.Reader, 4096)
 	if err != nil {
-		log.Fatal("[Tulip] Failed to open signing key file:", err)
+		logger.Logger.Fatal("Failed to open signing key file:", err)
 	}
 
 	db, err := tulip.InitDB(filepath.Join(wd, "tulip.db.sqlite"))
 	if err != nil {
-		log.Fatal("[Tulip] Failed to open database:", err)
+		logger.Logger.Fatal("Failed to open database:", err)
 	}
 
-	log.Println("[Tulip] Checking database contains at least one user")
+	logger.Logger.Info("Checking database contains at least one user")
 	if err := checkDbHasUser(db); err != nil {
-		log.Fatal("[Tulip] Failed check:", err)
+		logger.Logger.Fatal("Failed check:", err)
 	}
 
 	if err = pages.LoadPages(wd); err != nil {
-		log.Fatal("[Tulip] Failed to load page templates:", err)
+		logger.Logger.Fatal("Failed to load page templates:", err)
 	}
 	if err := templates.LoadMailTemplates(wd); err != nil {
-		log.Fatal("[Tulip] Failed to load mail templates:", err)
+		logger.Logger.Fatal("Failed to load mail templates:", err)
 	}
 
 	srv := server.NewHttpServer(startUp, db, signingKey)
-	log.Printf("[Tulip] Starting HTTP server on '%s'\n", srv.Addr)
-	go utils.RunBackgroundHttp("HTTP", srv)
+	logger.Logger.Info("Starting server", "addr", srv.Addr)
+	go utils.RunBackgroundHttp(logger.Logger, srv)
 
 	exit_reload.ExitReload("Tulip", func() {}, func() {
 		// stop http server

@@ -6,7 +6,7 @@ require (
 	github.com/1f349/cache v0.0.3
 	github.com/1f349/mjwt v0.2.5
 	github.com/1f349/overlapfs v0.0.1
-	github.com/1f349/violet v0.0.13
+	github.com/1f349/violet v0.0.14
 	github.com/charmbracelet/log v0.4.0
 	github.com/emersion/go-message v0.18.1
 	github.com/emersion/go-sasl v0.0.0-20231106173351-e73c9f7bad43

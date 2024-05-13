@@ -4,11 +4,11 @@ import (
 	"errors"
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/database/types"
+	"github.com/1f349/tulip/logger"
 	"github.com/1f349/tulip/pages"
 	"github.com/emersion/go-message/mail"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -142,7 +142,7 @@ func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, 
 			"RegisterUrl": h.conf.BaseUrl + "/mail/password/" + u,
 		})
 		if err != nil {
-			log.Println("[Tulip] Login: Failed to send register email:", err)
+			logger.Logger.Warn("Login: Failed to send register email:", "err", err)
 			http.Error(rw, "500 Internal Server Error: Failed to send register email", http.StatusInternalServerError)
 			return
 		}

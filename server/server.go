@@ -10,6 +10,7 @@ import (
 	"github.com/1f349/mjwt"
 	clientStore "github.com/1f349/tulip/client-store"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/logger"
 	"github.com/1f349/tulip/openid"
 	scope2 "github.com/1f349/tulip/scope"
 	"github.com/1f349/tulip/theme"
@@ -18,7 +19,6 @@ import (
 	"github.com/go-oauth2/oauth2/v4/server"
 	"github.com/go-oauth2/oauth2/v4/store"
 	"github.com/julienschmidt/httprouter"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -64,7 +64,7 @@ func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *htt
 	openIdConf := openid.GenConfig(conf.BaseUrl, []string{"openid", "name", "username", "profile", "email", "birthdate", "age", "zoneinfo", "locale"}, []string{"sub", "name", "preferred_username", "profile", "picture", "website", "email", "email_verified", "gender", "birthdate", "zoneinfo", "locale", "updated_at"})
 	openIdBytes, err := json.Marshal(openIdConf)
 	if err != nil {
-		log.Fatalln("Failed to generate OpenID configuration:", err)
+		logger.Logger.Fatal("Failed to generate OpenID configuration", "err", err)
 	}
 
 	oauthManager := manage.NewDefaultManager()
@@ -85,9 +85,6 @@ func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *htt
 	oauthManager.MapAccessGenerate(NewJWTAccessGenerate(hs.signingKey))
 	oauthManager.MapClientStorage(clientStore.New(db))
 
-	oauthSrv.SetResponseErrorHandler(func(re *errors.Response) {
-		log.Printf("Response error: %#v\n", re)
-	})
 	oauthSrv.SetClientInfoHandler(func(req *http.Request) (clientID, clientSecret string, err error) {
 		cId, cSecret, err := server.ClientBasicHandler(req)
 		if cId == "" && cSecret == "" {

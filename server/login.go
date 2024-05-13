@@ -7,13 +7,13 @@ import (
 	"github.com/1f349/mjwt/auth"
 	"github.com/1f349/mjwt/claims"
 	"github.com/1f349/tulip/database"
+	"github.com/1f349/tulip/logger"
 	"github.com/1f349/tulip/pages"
 	"github.com/emersion/go-message/mail"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/bcrypt"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -107,7 +107,7 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 				"VerifyUrl": h.conf.BaseUrl + "/mail/verify/" + u,
 			})
 			if err != nil {
-				log.Println("[Tulip] Login: Failed to send verification email:", err)
+				logger.Logger.Warn("Login: Failed to send verification email", "err", err)
 				http.Error(rw, "500 Internal Server Error: Failed to send verification email", http.StatusInternalServerError)
 				return
 			}
