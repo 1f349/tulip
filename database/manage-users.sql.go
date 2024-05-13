@@ -17,6 +17,7 @@ SELECT subject,
        name,
        username,
        picture,
+       website,
        email,
        email_verified,
        role,
@@ -31,6 +32,7 @@ type GetUserListRow struct {
 	Name          string         `json:"name"`
 	Username      string         `json:"username"`
 	Picture       string         `json:"picture"`
+	Website       string         `json:"website"`
 	Email         string         `json:"email"`
 	EmailVerified bool           `json:"email_verified"`
 	Role          types.UserRole `json:"role"`
@@ -52,6 +54,7 @@ func (q *Queries) GetUserList(ctx context.Context, offset int64) ([]GetUserListR
 			&i.Name,
 			&i.Username,
 			&i.Picture,
+			&i.Website,
 			&i.Email,
 			&i.EmailVerified,
 			&i.Role,
@@ -90,7 +93,7 @@ func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) 
 }
 
 const userEmailExists = `-- name: UserEmailExists :one
-SELECT CAST(EXISTS(SELECT 1 FROM users WHERE email = ? AND email_verified = 1) AS BOOLEAN) AS email_exists
+SELECT EXISTS(SELECT 1 FROM users WHERE email = ? AND email_verified = 1) == 1 AS email_exists
 `
 
 func (q *Queries) UserEmailExists(ctx context.Context, email string) (bool, error) {

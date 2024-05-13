@@ -1,5 +1,5 @@
 -- name: HasUser :one
-SELECT CAST(count(subject) AS BOOLEAN) AS hasUser
+SELECT count(subject) > 0 AS hasUser
 FROM users;
 
 -- name: addUser :exec
@@ -7,7 +7,7 @@ INSERT INTO users (subject, name, username, password, email, email_verified, rol
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: checkLogin :one
-SELECT subject, name, password, CAST(EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) AS BOOLEAN) AS has_otp, email, email_verified
+SELECT subject, name, password, EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) == 1 AS has_otp, email, email_verified
 FROM users
 WHERE username = ?
 LIMIT 1;
@@ -69,7 +69,7 @@ FROM otp
 WHERE subject = ?;
 
 -- name: HasOtp :one
-SELECT CAST(EXISTS(SELECT 1 FROM otp WHERE subject = ?) AS BOOLEAN);
+SELECT EXISTS(SELECT 1 FROM otp WHERE subject = ?) == 1 as hasOtp;
 
 -- name: GetUserEmail :one
 SELECT email

@@ -53,7 +53,7 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 	pages.RenderPageTemplate(rw, "index", map[string]any{
 		"ServiceName": h.conf.ServiceName,
 		"Auth":        auth,
-		"User":        userWithName,
+		"User":        database.User{Subject: auth.ID, Name: userWithName, Role: userRole},
 		"Nonce":       lNonce,
 		"OtpEnabled":  hasTwoFactor,
 		"IsAdmin":     userRole == types.RoleAdmin,

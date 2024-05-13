@@ -114,18 +114,18 @@ func (q *Queries) GetUserRole(ctx context.Context, subject string) (types.UserRo
 }
 
 const hasOtp = `-- name: HasOtp :one
-SELECT CAST(EXISTS(SELECT 1 FROM otp WHERE subject = ?) AS BOOLEAN)
+SELECT EXISTS(SELECT 1 FROM otp WHERE subject = ?) == 1 as hasOtp
 `
 
 func (q *Queries) HasOtp(ctx context.Context, subject string) (bool, error) {
 	row := q.db.QueryRowContext(ctx, hasOtp, subject)
-	var column_1 bool
-	err := row.Scan(&column_1)
-	return column_1, err
+	var hasotp bool
+	err := row.Scan(&hasotp)
+	return hasotp, err
 }
 
 const hasUser = `-- name: HasUser :one
-SELECT CAST(count(subject) AS BOOLEAN) AS hasUser
+SELECT count(subject) > 0 AS hasUser
 FROM users
 `
 
@@ -252,7 +252,7 @@ func (q *Queries) changeUserPassword(ctx context.Context, arg changeUserPassword
 }
 
 const checkLogin = `-- name: checkLogin :one
-SELECT subject, name, password, CAST(EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) AS BOOLEAN) AS has_otp, email, email_verified
+SELECT subject, name, password, EXISTS(SELECT 1 FROM otp WHERE otp.subject = users.subject) == 1 AS has_otp, email, email_verified
 FROM users
 WHERE username = ?
 LIMIT 1

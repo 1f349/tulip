@@ -41,6 +41,7 @@ func LoadPages(wd string) (err error) {
 }
 
 func RenderPageTemplate(wr io.Writer, name string, data any) {
+	logger.Logger.Helper()
 	err := wwwTemplates.ExecuteTemplate(wr, name+".go.html", data)
 	if err != nil {
 		logger.Logger.Warn("Failed to render page", "name", name, "err", err)

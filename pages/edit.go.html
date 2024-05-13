@@ -9,7 +9,7 @@
     <h1>{{.ServiceName}}</h1>
 </header>
 <main>
-    <div>Logged in as: {{.User.Name}} ({{.User.Sub}})</div>
+    <div>Logged in as: {{.User.Name}} ({{.User.Subject}})</div>
     <div>
         <form method="POST" action="/edit">
             <input type="hidden" name="nonce" value="{{.Nonce}}">
@@ -43,7 +43,7 @@
             </div>
             <div>
                 <label for="field_zoneinfo">Time Zone:</label>
-                <input type="text" name="zoneinfo" id="field_zoneinfo" value="{{.User.ZoneInfo}}" list="list_zoneinfo">
+                <input type="text" name="zoneinfo" id="field_zoneinfo" value="{{.User.Zoneinfo}}" list="list_zoneinfo">
                 <datalist id="list_zoneinfo">
                     {{range .ListZoneInfo}}
                         <option value="{{.}}"></option>
