@@ -16,7 +16,7 @@ func (h *HttpServer) EditGet(rw http.ResponseWriter, req *http.Request, _ httpro
 
 	if h.DbTx(rw, func(tx *database.Queries) error {
 		var err error
-		user, err = tx.GetUser(req.Context(), auth.ID)
+		user, err = tx.GetUser(req.Context(), auth.Subject)
 		if err != nil {
 			return fmt.Errorf("failed to read user data: %w", err)
 		}
@@ -73,7 +73,7 @@ func (h *HttpServer) EditPost(rw http.ResponseWriter, req *http.Request, _ httpr
 		Zoneinfo:  patch.ZoneInfo,
 		Locale:    patch.Locale,
 		UpdatedAt: time.Now(),
-		Subject:   auth.ID,
+		Subject:   auth.Subject,
 	}
 	if h.DbTx(rw, func(tx *database.Queries) error {
 		if err := tx.ModifyUser(req.Context(), m); err != nil {

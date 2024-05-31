@@ -21,7 +21,7 @@ func TestUserAuth_NextFlowUrl(t *testing.T) {
 func TestUserAuth_IsGuest(t *testing.T) {
 	var u UserAuth
 	assert.True(t, u.IsGuest())
-	u.ID = uuid.NewString()
+	u.Subject = uuid.NewString()
 	assert.False(t, u.IsGuest())
 }
 
@@ -47,10 +47,10 @@ func TestOptionalAuthentication(t *testing.T) {
 	h := &HttpServer{}
 	req, err := http.NewRequest(http.MethodGet, "https://example.com/hello", nil)
 	assert.NoError(t, err)
-	auth, err := h.internalAuthenticationHandler(req)
+	auth, err := h.internalAuthenticationHandler(nil, req)
 	assert.NoError(t, err)
 	assert.True(t, auth.IsGuest())
-	auth.ID = "567"
+	auth.Subject = "567"
 }
 
 func TestPrepareRedirectUrl(t *testing.T) {

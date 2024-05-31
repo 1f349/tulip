@@ -34,15 +34,15 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 	var userRole types.UserRole
 	var hasTwoFactor bool
 	if h.DbTx(rw, func(tx *database.Queries) (err error) {
-		userWithName, err = tx.GetUserDisplayName(req.Context(), auth.ID)
+		userWithName, err = tx.GetUserDisplayName(req.Context(), auth.Subject)
 		if err != nil {
 			return fmt.Errorf("failed to get user display name: %w", err)
 		}
-		hasTwoFactor, err = tx.HasOtp(req.Context(), auth.ID)
+		hasTwoFactor, err = tx.HasOtp(req.Context(), auth.Subject)
 		if err != nil {
 			return fmt.Errorf("failed to get user two factor state: %w", err)
 		}
-		userRole, err = tx.GetUserRole(req.Context(), auth.ID)
+		userRole, err = tx.GetUserRole(req.Context(), auth.Subject)
 		if err != nil {
 			return fmt.Errorf("failed to get user role: %w", err)
 		}
@@ -53,7 +53,7 @@ func (h *HttpServer) Home(rw http.ResponseWriter, req *http.Request, _ httproute
 	pages.RenderPageTemplate(rw, "index", map[string]any{
 		"ServiceName": h.conf.ServiceName,
 		"Auth":        auth,
-		"User":        database.User{Subject: auth.ID, Name: userWithName, Role: userRole},
+		"User":        database.User{Subject: auth.Subject, Name: userWithName, Role: userRole},
 		"Nonce":       lNonce,
 		"OtpEnabled":  hasTwoFactor,
 		"IsAdmin":     userRole == types.RoleAdmin,

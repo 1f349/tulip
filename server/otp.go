@@ -34,7 +34,7 @@ func (h *HttpServer) LoginOtpPost(rw http.ResponseWriter, req *http.Request, _ h
 	}
 
 	otpInput := req.FormValue("code")
-	if h.fetchAndValidateOtp(rw, auth.ID, otpInput) {
+	if h.fetchAndValidateOtp(rw, auth.Subject, otpInput) {
 		return
 	}
 
@@ -86,13 +86,13 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 		}
 
 		otpInput := req.Form.Get("code")
-		if h.fetchAndValidateOtp(rw, auth.ID, otpInput) {
+		if h.fetchAndValidateOtp(rw, auth.Subject, otpInput) {
 			return
 		}
 
 		if h.DbTx(rw, func(tx *database.Queries) error {
 			return tx.SetOtp(req.Context(), database.SetOtpParams{
-				Subject: auth.ID,
+				Subject: auth.Subject,
 				Secret:  "",
 				Digits:  0,
 			})
@@ -128,7 +128,7 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 		var email string
 		if h.DbTx(rw, func(tx *database.Queries) error {
 			var err error
-			email, err = tx.GetUserEmail(req.Context(), auth.ID)
+			email, err = tx.GetUserEmail(req.Context(), auth.Subject)
 			return err
 		}) {
 			return
@@ -177,7 +177,7 @@ func (h *HttpServer) EditOtpPost(rw http.ResponseWriter, req *http.Request, _ ht
 
 	if h.DbTx(rw, func(tx *database.Queries) error {
 		return tx.SetOtp(req.Context(), database.SetOtpParams{
-			Subject: auth.ID,
+			Subject: auth.Subject,
 			Secret:  secret,
 			Digits:  int64(digits),
 		})

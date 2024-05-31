@@ -124,7 +124,14 @@ func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *htt
 		}
 		if subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(req.PostFormValue("nonce"))) == 1 {
 			http.SetCookie(rw, &http.Cookie{
-				Name:     "tulip-login-data",
+				Name:     "tulip-login-access",
+				Path:     "/",
+				MaxAge:   -1,
+				Secure:   true,
+				SameSite: http.SameSiteLaxMode,
+			})
+			http.SetCookie(rw, &http.Cookie{
+				Name:     "tulip-login-refresh",
 				Path:     "/",
 				MaxAge:   -1,
 				Secure:   true,

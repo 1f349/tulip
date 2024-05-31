@@ -80,11 +80,11 @@ func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request
 		var user string
 		var hasOtp bool
 		if h.DbTx(rw, func(tx *database.Queries) (err error) {
-			user, err = tx.GetUserDisplayName(req.Context(), auth.ID)
+			user, err = tx.GetUserDisplayName(req.Context(), auth.Subject)
 			if err != nil {
 				return
 			}
-			hasOtp, err = tx.HasOtp(req.Context(), auth.ID)
+			hasOtp, err = tx.HasOtp(req.Context(), auth.Subject)
 			return
 		}) {
 			return
@@ -117,7 +117,7 @@ func (h *HttpServer) authorizeEndpoint(rw http.ResponseWriter, req *http.Request
 
 	if !isSSO {
 		otpInput := req.FormValue("code")
-		if h.fetchAndValidateOtp(rw, auth.ID, otpInput) {
+		if h.fetchAndValidateOtp(rw, auth.Subject, otpInput) {
 			return
 		}
 	}
@@ -147,7 +147,7 @@ func (h *HttpServer) oauthUserAuthorization(rw http.ResponseWriter, req *http.Re
 		return "", err
 	}
 
-	auth, err := h.internalAuthenticationHandler(req)
+	auth, err := h.internalAuthenticationHandler(rw, req)
 	if err != nil {
 		return "", err
 	}
@@ -169,5 +169,5 @@ func (h *HttpServer) oauthUserAuthorization(rw http.ResponseWriter, req *http.Re
 		http.Redirect(rw, req, redirectUrl.String(), http.StatusFound)
 		return "", nil
 	}
-	return auth.ID, nil
+	return auth.Subject, nil
 }

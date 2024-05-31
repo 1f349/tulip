@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/1f349/mjwt"
 	"github.com/1f349/mjwt/auth"
 	"github.com/1f349/mjwt/claims"
 	"github.com/1f349/tulip/database"
@@ -35,8 +36,8 @@ func getUserLoginName(req *http.Request) string {
 	return originUrl.Query().Get("login_name")
 }
 
-func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
-	if !auth.IsGuest() {
+func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, userAuth UserAuth) {
+	if !userAuth.IsGuest() {
 		h.SafeRedirect(rw, req)
 		return
 	}
@@ -53,7 +54,7 @@ func (h *HttpServer) LoginGet(rw http.ResponseWriter, req *http.Request, _ httpr
 	})
 }
 
-func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
+func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, userAuth UserAuth) {
 	un := req.FormValue("username")
 	pw := req.FormValue("password")
 
@@ -121,12 +122,13 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 	}
 
 	// only continues if the above tx succeeds
-	auth = UserAuth{
-		ID:      userInfo.Subject,
+	userAuth = UserAuth{
+		Subject: userInfo.Subject,
 		NeedOtp: hasOtp,
 	}
 
-	if h.setLoginDataCookie(rw, auth) {
+	if h.setLoginDataCookie(rw, userAuth) {
+		http.Error(rw, "Failed to save login cookie", http.StatusInternalServerError)
 		return
 	}
 
@@ -144,27 +146,85 @@ func (h *HttpServer) LoginPost(rw http.ResponseWriter, req *http.Request, _ http
 	h.SafeRedirect(rw, req)
 }
 
-const oneYear = 365 * 24 * time.Hour
+const twelveHours = 12 * time.Hour
+const oneMonth = 30 * 24 * time.Hour
 
 func (h *HttpServer) setLoginDataCookie(rw http.ResponseWriter, authData UserAuth) bool {
 	ps := claims.NewPermStorage()
 	if authData.NeedOtp {
 		ps.Set("needs-otp")
 	}
-	gen, err := h.signingKey.GenerateJwt(authData.ID, uuid.NewString(), jwt.ClaimStrings{h.conf.BaseUrl}, oneYear, auth.AccessTokenClaims{Perms: ps})
+	accId := uuid.NewString()
+	gen, err := h.signingKey.GenerateJwt(authData.Subject, accId, jwt.ClaimStrings{h.conf.BaseUrl}, twelveHours, auth.AccessTokenClaims{Perms: ps})
+	if err != nil {
+		http.Error(rw, "Failed to generate cookie token", http.StatusInternalServerError)
+		return true
+	}
+	ref, err := h.signingKey.GenerateJwt(authData.Subject, uuid.NewString(), jwt.ClaimStrings{h.conf.BaseUrl}, oneMonth, auth.RefreshTokenClaims{AccessTokenId: accId})
 	if err != nil {
 		http.Error(rw, "Failed to generate cookie token", http.StatusInternalServerError)
 		return true
 	}
 	http.SetCookie(rw, &http.Cookie{
-		Name:     "tulip-login-data",
+		Name:     "tulip-login-access",
 		Value:    gen,
 		Path:     "/",
-		Expires:  time.Now().AddDate(1, 0, 0),
 		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "tulip-login-refresh",
+		Value:    ref,
+		Path:     "/",
+		Expires:  time.Now().AddDate(0, 0, 32),
+		Secure:   true,
+		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
 	return false
+}
+
+func readJwtCookie[T mjwt.Claims](req *http.Request, cookieName string, signingKey mjwt.Verifier) (mjwt.BaseTypeClaims[T], error) {
+	loginCookie, err := req.Cookie(cookieName)
+	if err != nil {
+		return mjwt.BaseTypeClaims[T]{}, err
+	}
+	_, b, err := mjwt.ExtractClaims[T](signingKey, loginCookie.Value)
+	if err != nil {
+		return mjwt.BaseTypeClaims[T]{}, err
+	}
+	return b, nil
+}
+
+func (h *HttpServer) readLoginAccessCookie(rw http.ResponseWriter, req *http.Request, u *UserAuth) error {
+	loginData, err := readJwtCookie[auth.AccessTokenClaims](req, "tulip-login-access", h.signingKey)
+	if err != nil {
+		return h.readLoginRefreshCookie(rw, req, u)
+	}
+	*u = UserAuth{
+		Subject: loginData.Subject,
+		NeedOtp: loginData.Claims.Perms.Has("needs-otp"),
+	}
+	return nil
+}
+
+func (h *HttpServer) readLoginRefreshCookie(rw http.ResponseWriter, req *http.Request, userAuth *UserAuth) error {
+	refreshData, err := readJwtCookie[auth.RefreshTokenClaims](req, "tulip-login-refresh", h.signingKey)
+	if err != nil {
+		return err
+	}
+
+	*userAuth = UserAuth{
+		Subject: refreshData.Subject,
+		NeedOtp: false,
+	}
+
+	if h.setLoginDataCookie(rw, *userAuth) {
+		http.Error(rw, "Failed to save login cookie", http.StatusInternalServerError)
+		return fmt.Errorf("failed to save login cookie: %w", ErrAuthHttpError)
+	}
+	return nil
 }
 
 func (h *HttpServer) LoginResetPasswordPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params) {

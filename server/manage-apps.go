@@ -27,12 +27,12 @@ func (h *HttpServer) ManageAppsGet(rw http.ResponseWriter, req *http.Request, _ 
 	var role types.UserRole
 	var appList []database.GetAppListRow
 	if h.DbTx(rw, func(tx *database.Queries) (err error) {
-		role, err = tx.GetUserRole(req.Context(), auth.ID)
+		role, err = tx.GetUserRole(req.Context(), auth.Subject)
 		if err != nil {
 			return
 		}
 		appList, err = tx.GetAppList(req.Context(), database.GetAppListParams{
-			Owner:   auth.ID,
+			Owner:   auth.Subject,
 			Column2: role == types.RoleAdmin,
 			Offset:  int64(offset),
 		})
@@ -84,7 +84,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 	if sso {
 		var role types.UserRole
 		if h.DbTx(rw, func(tx *database.Queries) (err error) {
-			role, err = tx.GetUserRole(req.Context(), auth.ID)
+			role, err = tx.GetUserRole(req.Context(), auth.Subject)
 			return
 		}) {
 			return
@@ -107,7 +107,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 				Name:    name,
 				Secret:  secret,
 				Domain:  domain,
-				Owner:   auth.ID,
+				Owner:   auth.Subject,
 				Public:  public,
 				Sso:     sso,
 				Active:  active,
@@ -124,7 +124,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 				Sso:     sso,
 				Active:  active,
 				Subject: req.FormValue("subject"),
-				Owner:   auth.ID,
+				Owner:   auth.Subject,
 			})
 		}) {
 			return
@@ -145,7 +145,7 @@ func (h *HttpServer) ManageAppsPost(rw http.ResponseWriter, req *http.Request, _
 			err = tx.ResetClientAppSecret(req.Context(), database.ResetClientAppSecretParams{
 				Secret:  secret,
 				Subject: sub,
-				Owner:   auth.ID,
+				Owner:   auth.Subject,
 			})
 			return err
 		}) {
