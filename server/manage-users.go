@@ -57,18 +57,40 @@ func (h *HttpServer) ManageUsersGet(rw http.ResponseWriter, req *http.Request, _
 	if q.Has("edit") {
 		for _, i := range userList {
 			if i.Subject == q.Get("edit") {
-				m["Edit"] = i
-				goto validEdit
+				m["EditUser"] = i
+				rw.Header().Set("Content-Type", "text/html")
+				rw.WriteHeader(http.StatusOK)
+				pages.RenderPageTemplate(rw, "manage-users-edit", m)
+				return
 			}
 		}
 		http.Error(rw, "400 Bad Request: Invalid user to edit", http.StatusBadRequest)
 		return
 	}
 
-validEdit:
 	rw.Header().Set("Content-Type", "text/html")
 	rw.WriteHeader(http.StatusOK)
 	pages.RenderPageTemplate(rw, "manage-users", m)
+}
+
+func (h *HttpServer) ManageUsersCreateGet(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {
+	var roles types.UserRole
+	if h.DbTx(rw, func(tx *database.Queries) (err error) {
+		roles, err = tx.GetUserRole(req.Context(), auth.Subject)
+		return
+	}) {
+		return
+	}
+
+	m := map[string]any{
+		"ServiceName": h.conf.ServiceName,
+		"IsAdmin":     roles == types.RoleAdmin,
+		"Namespace":   h.conf.Namespace,
+	}
+
+	rw.Header().Set("Content-Type", "text/html")
+	rw.WriteHeader(http.StatusOK)
+	pages.RenderPageTemplate(rw, "manage-users-create", m)
 }
 
 func (h *HttpServer) ManageUsersPost(rw http.ResponseWriter, req *http.Request, _ httprouter.Params, auth UserAuth) {

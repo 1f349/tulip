@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"crypto/subtle"
 	_ "embed"
 	"encoding/json"
@@ -12,8 +11,8 @@ import (
 	"github.com/1f349/tulip/database"
 	"github.com/1f349/tulip/logger"
 	"github.com/1f349/tulip/openid"
+	"github.com/1f349/tulip/pages"
 	scope2 "github.com/1f349/tulip/scope"
-	"github.com/1f349/tulip/theme"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
@@ -21,6 +20,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 )
@@ -52,6 +52,7 @@ type mailLinkKey struct {
 
 func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *http.Server {
 	r := httprouter.New()
+	contentCache := time.Now()
 
 	// remove last slash from baseUrl
 	{
@@ -145,8 +146,14 @@ func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *htt
 	}))
 
 	// theme styles
-	r.GET("/theme/style.css", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
-		http.ServeContent(rw, req, "style.css", time.Now(), bytes.NewReader(theme.DefaultThemeCss))
+	r.GET("/assets/*filepath", func(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
+		name := params.ByName("filepath")
+		if strings.Contains(name, "..") {
+			http.Error(rw, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		out := pages.RenderCss(path.Join("assets", name))
+		http.ServeContent(rw, req, path.Base(name), contentCache, out)
 	})
 
 	// login steps
@@ -168,8 +175,10 @@ func NewHttpServer(conf Conf, db *database.Queries, signingKey mjwt.Signer) *htt
 
 	// management pages
 	r.GET("/manage/apps", hs.RequireAuthentication(hs.ManageAppsGet))
+	r.GET("/manage/apps/create", hs.RequireAuthentication(hs.ManageAppsCreateGet))
 	r.POST("/manage/apps", hs.RequireAuthentication(hs.ManageAppsPost))
 	r.GET("/manage/users", hs.RequireAdminAuthentication(hs.ManageUsersGet))
+	r.GET("/manage/users/create", hs.RequireAuthentication(hs.ManageUsersCreateGet))
 	r.POST("/manage/users", hs.RequireAdminAuthentication(hs.ManageUsersPost))
 
 	// oauth pages

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.ServiceName}}</title>
+    <link rel="stylesheet" href="/theme/style.css">
+    <script>
+        window.addEventListener("load", function () {
+            selectText("app-secret");
+        });
+
+        // Thanks again: https://stackoverflow.com/a/987376
+        function selectText(nodeId) {
+            const node = document.getElementById(nodeId);
+
+            if (document.body.createTextRange) {
+                const range = document.body.createTextRange();
+                range.moveToElementText(node);
+                range.select();
+            } else if (window.getSelection) {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } else {
+                console.warn("Could not select text in node: Unsupported browser.");
+            }
+        }
+    </script>
+</head>
+<body>
+<header>
+    <h1>{{.ServiceName}}</h1>
+</header>
+<main>
+    <form method="GET" action="/">
+        <button type="submit">Home</button>
+    </form>
+
+    <h2>Create Client Application</h2>
+    <form method="POST" action="/manage/apps">
+        <input type="hidden" name="action" value="create"/>
+        <input type="hidden" name="offset" value="{{.Offset}}"/>
+        <div>
+            <label for="field_name">Name:</label>
+            <input type="text" name="name" id="field_name" required/>
+        </div>
+        <div>
+            <label for="field_domain">Domain:</label>
+            <input type="text" name="domain" id="field_domain" required/>
+        </div>
+        <div>
+            <label for="field_public">Public: <input type="checkbox" name="public" id="field_public"/></label>
+        </div>
+        {{if .IsAdmin}}
+            <div>
+                <label for="field_sso">SSO: <input type="checkbox" name="sso" id="field_sso"/></label>
+            </div>
+        {{end}}
+        <div>
+            <label for="field_active">Active: <input type="checkbox" name="active" id="field_active"
+                                                     checked/></label>
+        </div>
+        <button type="submit">Create</button>
+    </form>
+</main>
+</body>
+</html>

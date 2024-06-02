@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.ServiceName}}</title>
+    <link rel="stylesheet" href="/theme/style.css">
+</head>
+<body>
+<header>
+    <h1>{{.ServiceName}}</h1>
+</header>
+<main>
+    <form method="GET" action="/">
+        <button type="submit">Home</button>
+    </form>
+
+    <h2>Edit User</h2>
+    <form method="POST" action="/manage/users">
+        <input type="hidden" name="action" value="edit"/>
+        <input type="hidden" name="offset" value="{{.Offset}}"/>
+        <input type="hidden" name="subject" value="{{.EditUser.Subject}}"/>
+        <div>
+            <label>ID: {{.EditUser.Subject}}</label>
+        </div>
+        <div>
+            <label for="field_name">Name:</label>
+            <input type="text" name="name" id="field_name" value="{{.EditUser.Name}}" required/>
+        </div>
+        <div>
+            <label for="field_username">Username:</label>
+            <input type="text" name="username" id="field_username" value="{{.EditUser.Username}}" required/>
+        </div>
+        <div>
+            <label for="field_role">Role:</label>
+            <select name="role" id="field_role" required>
+                <option value="member" {{if (eq .EditUser.Role 0)}}selected{{end}}>Member</option>
+                <option value="admin" {{if (eq .EditUser.Role 1)}}selected{{end}}>Admin</option>
+            </select>
+        </div>
+        <div>
+            <label for="field_active">Active: <input type="checkbox" name="active" id="field_active"
+                                                     checked/></label>
+        </div>
+        <button type="submit">Edit</button>
+    </form>
+    <form method="GET" action="/manage/users">
+        <input type="hidden" name="offset" value="{{.Offset}}"/>
+        <button type="submit">Cancel</button>
+    </form>
+</main>
+</body>
+</html>

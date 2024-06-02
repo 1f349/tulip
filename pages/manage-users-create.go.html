@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.ServiceName}}</title>
+    <link rel="stylesheet" href="/theme/style.css">
+</head>
+<body>
+<header>
+    <h1>{{.ServiceName}}</h1>
+</header>
+<main>
+    <form method="GET" action="/">
+        <button type="submit">Home</button>
+    </form>
+
+    <h2>Create User</h2>
+    <form method="POST" action="/manage/users">
+        <input type="hidden" name="action" value="create"/>
+        <input type="hidden" name="offset" value="{{.Offset}}"/>
+        <div>
+            <label for="field_name">Name:</label>
+            <input type="text" name="name" id="field_name" required/>
+        </div>
+        <div>
+            <label for="field_username">Username:</label>
+            <input type="text" name="username" id="field_username" required/>
+        </div>
+        <div>
+            <label for="field_email">Email:</label>
+            <p>Using an `@{{.Namespace}}` email address will automatically verify as it is owned by this login
+                service.</p>
+            <input type="text" name="email" id="field_email" required/>
+        </div>
+        <div>
+            <label for="field_role">Role:</label>
+            <select name="role" id="field_role" required>
+                <option value="member" selected>Member</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <div>
+            <label for="field_active">Active: <input type="checkbox" name="active" id="field_active"
+                                                     checked/></label>
+        </div>
+        <button type="submit">Create</button>
+    </form>
+</main>
+</body>
+</html>

@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 )
@@ -45,9 +46,10 @@ func TestRequireAuthentication(t *testing.T) {
 
 func TestOptionalAuthentication(t *testing.T) {
 	h := &HttpServer{}
+	rec := httptest.NewRecorder()
 	req, err := http.NewRequest(http.MethodGet, "https://example.com/hello", nil)
 	assert.NoError(t, err)
-	auth, err := h.internalAuthenticationHandler(nil, req)
+	auth, err := h.internalAuthenticationHandler(rec, req)
 	assert.NoError(t, err)
 	assert.True(t, auth.IsGuest())
 	auth.Subject = "567"
