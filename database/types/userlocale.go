@@ -2,6 +2,7 @@ package types
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"golang.org/x/text/language"
@@ -9,6 +10,7 @@ import (
 
 var (
 	_ sql.Scanner      = &UserLocale{}
+	_ driver.Valuer    = &UserLocale{}
 	_ json.Marshaler   = &UserLocale{}
 	_ json.Unmarshaler = &UserLocale{}
 )
@@ -27,7 +29,13 @@ func (l *UserLocale) Scan(src any) error {
 	l.Tag = lang
 	return nil
 }
+
+func (l UserLocale) Value() (driver.Value, error) {
+	return l.Tag.String(), nil
+}
+
 func (l UserLocale) MarshalJSON() ([]byte, error) { return json.Marshal(l.Tag.String()) }
+
 func (l *UserLocale) UnmarshalJSON(bytes []byte) error {
 	var a string
 	err := json.Unmarshal(bytes, &a)

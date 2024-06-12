@@ -29,12 +29,15 @@ func (l *UserZone) Scan(src any) error {
 	l.Location = loc
 	return nil
 }
+
 func (l UserZone) Value() (driver.Value, error) {
 	return l.Location.String(), nil
 }
+
 func (l UserZone) MarshalJSON() ([]byte, error) {
 	return json.Marshal(l.Location.String())
 }
+
 func (l *UserZone) UnmarshalJSON(bytes []byte) error {
 	var a string
 	err := json.Unmarshal(bytes, &a)
