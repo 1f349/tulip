@@ -2,6 +2,7 @@ package types
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"github.com/mrmelon54/pronouns"
@@ -27,7 +28,13 @@ func (p *UserPronoun) Scan(src any) error {
 	p.Pronoun = pro
 	return nil
 }
+
+func (p *UserPronoun) Value() (driver.Value, error) {
+	return p.Pronoun.String(), nil
+}
+
 func (p UserPronoun) MarshalJSON() ([]byte, error) { return json.Marshal(p.Pronoun.String()) }
+
 func (p *UserPronoun) UnmarshalJSON(bytes []byte) error {
 	var a string
 	err := json.Unmarshal(bytes, &a)
