@@ -10,6 +10,7 @@ import (
 
 var (
 	_ sql.Scanner      = &UserPronoun{}
+	_ driver.Valuer    = &UserPronoun{}
 	_ json.Marshaler   = &UserPronoun{}
 	_ json.Unmarshaler = &UserPronoun{}
 )
@@ -29,7 +30,7 @@ func (p *UserPronoun) Scan(src any) error {
 	return nil
 }
 
-func (p *UserPronoun) Value() (driver.Value, error) {
+func (p UserPronoun) Value() (driver.Value, error) {
 	return p.Pronoun.String(), nil
 }
 
